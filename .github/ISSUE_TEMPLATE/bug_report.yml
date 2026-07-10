@@ -1,5 +1,5 @@
-name: Bug report
-description: Report a bug or unexpected behavior
+name: Bug report / 缺陷报告
+description: Report a bug or unexpected behavior / 报告一个缺陷或异常行为
 title: "[Bug] "
 labels: ["bug"]
 body:
@@ -7,76 +7,77 @@ body:
     attributes:
       value: |
         Thanks for reporting a bug! Please fill in as much detail as possible.
+        感谢提交缺陷！请尽量详细地填写以下信息。
   - type: textarea
     id: description
     attributes:
-      label: Describe the bug
-      description: A clear and concise description of what the bug is.
-      placeholder: When I ..., the plugin ...
+      label: Describe the bug / 缺陷描述
+      description: A clear and concise description of what the bug is. / 清晰简要地描述缺陷现象。
+      placeholder: When I ..., the plugin ... / 当我……时，插件……
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Steps to reproduce
-      description: Steps to reproduce the behavior.
+      label: Steps to reproduce / 复现步骤
+      description: Steps to reproduce the behavior. / 复现该问题的步骤。
       placeholder: |
-        1. Open note '...'
-        2. Add task '...'
-        3. Run command '...'
-        4. See error
+        1. Open note '...' / 打开笔记 '...'
+        2. Add task '...' / 添加任务 '...'
+        3. Run command '...' / 运行命令 '...'
+        4. See error / 出现错误
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: Expected behavior
-      description: What you expected to happen.
+      label: Expected behavior / 预期行为
+      description: What you expected to happen. / 你期望发生的行为。
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
-      label: Actual behavior
-      description: What actually happened instead.
+      label: Actual behavior / 实际行为
+      description: What actually happened instead. / 实际发生的行为。
     validations:
       required: true
   - type: input
     id: plugin-version
     attributes:
-      label: Plugin version
-      description: The version shown in Settings → Community plugins.
+      label: Plugin version / 插件版本
+      description: The version shown in Settings → Community plugins. / 设置 → 第三方插件中显示的版本。
       placeholder: "1.0.0"
     validations:
       required: true
   - type: input
     id: obsidian-version
     attributes:
-      label: Obsidian version
-      description: Help → About → Current version.
+      label: Obsidian version / Obsidian 版本
+      description: Help → About → Current version. / 帮助 → 关于 → 当前版本。
       placeholder: "1.2.3"
     validations:
       required: true
   - type: input
     id: os
     attributes:
-      label: OS
+      label: OS / 操作系统
       placeholder: "Windows 11 / macOS 14 / Linux"
     validations:
       required: true
   - type: dropdown
     id: sp-api
     attributes:
-      label: Super Productivity REST API enabled?
+      label: Super Productivity REST API enabled? / SP REST API 是否已启用？
       options:
-        - "Yes"
-        - "No"
-        - "Not sure"
+        - "Yes / 是"
+        - "No / 否"
+        - "Not sure / 不确定"
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Logs / screenshots
-      description: DevTools console output, error messages, or screenshots.
+      label: Logs / screenshots / 日志 / 截图
+      description: DevTools console output, error messages, or screenshots. / 开发者工具控制台输出、错误信息或截图。
       render: shell

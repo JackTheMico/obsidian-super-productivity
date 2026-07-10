@@ -1,5 +1,5 @@
-name: Feature request
-description: Suggest a new feature or improvement
+name: Feature request / 功能请求
+description: Suggest a new feature or improvement / 提议新功能或改进
 title: "[Feature] "
 labels: ["enhancement"]
 body:
@@ -7,28 +7,29 @@ body:
     attributes:
       value: |
         Thanks for suggesting an idea! Please describe it clearly.
+        感谢提出想法！请清晰地描述你的建议。
   - type: textarea
     id: problem
     attributes:
-      label: Problem / motivation
-      description: What problem would this feature solve? What are you trying to achieve?
+      label: Problem / motivation / 问题 / 动机
+      description: What problem would this feature solve? What are you trying to achieve? / 这个功能要解决什么问题？你想达成什么目标？
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed solution
-      description: Describe the feature or behavior you'd like to see.
+      label: Proposed solution / 提议的方案
+      description: Describe the feature or behavior you'd like to see. / 描述你希望看到的功能或行为。
     validations:
       required: true
   - type: textarea
     id: sp-api
     attributes:
-      label: Super Productivity API impact
-      description: Does this require new Super Productivity REST API capabilities (e.g. creating tags/projects, webhooks)?
-      placeholder: "Read-only tag listing only; would need API support for ..."
+      label: Super Productivity API impact / SP API 影响
+      description: Does this require new Super Productivity REST API capabilities (e.g. creating tags/projects, webhooks)? / 是否需要 Super Productivity REST API 的新能力（如创建标签/项目、Webhook 等）？
+      placeholder: "Read-only tag listing only; would need API support for ... / 目前仅只读标签，需 API 支持……"
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternatives considered
-      description: Any alternative solutions or workarounds you've considered.
+      label: Alternatives considered / 备选方案
+      description: Any alternative solutions or workarounds you've considered. / 你考虑过的其他方案或变通办法。
