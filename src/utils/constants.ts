@@ -4,3 +4,6 @@ export const SP_ID_REGEX = /\[sp_id::\s*([^\]]+)\]\s*$/;
 export const CHECKBOX_DONE_REGEX = /^- \[x\]/i;
 export const CHECKBOX_UNDONE_REGEX = /^- \[ \]/;
 export const CHECKBOX_REGEX = /^- \[[x ]\] /i;
+export const TAGS_REGEX = /\[tags::\s*([^\]]+)\]/i;
+export const DUE_REGEX = /\[due::\s*([^\]]+)\]/i;
+export const PROJECT_REGEX = /\[project::\s*([^\]]+)\]/i;

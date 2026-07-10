@@ -1,4 +1,11 @@
-import { SP_ID_REGEX, CHECKBOX_DONE_REGEX, CHECKBOX_UNDONE_REGEX } from '../utils/constants';
+import {
+	SP_ID_REGEX,
+	TAGS_REGEX,
+	DUE_REGEX,
+	PROJECT_REGEX,
+	CHECKBOX_DONE_REGEX,
+	CHECKBOX_UNDONE_REGEX,
+} from '../utils/constants';
 
 export interface TaskLine {
 	raw: string;
@@ -6,8 +13,16 @@ export interface TaskLine {
 	indentLevel: number;
 	isDone: boolean;
 	spId: string | null;
+	tags: string[];
+	dueRaw: string | null;
+	project: string | null;
 	lineNumber: number;
 	filePath: string;
+}
+
+function extractInlineField(line: string, regex: RegExp): string | null {
+	const match = line.match(regex);
+	return match ? match[1]!.trim() : null;
 }
 
 export function parseLine(line: string, lineNumber: number, filePath: string): TaskLine | null {
@@ -21,12 +36,38 @@ export function parseLine(line: string, lineNumber: number, filePath: string): T
 	const isDone = CHECKBOX_DONE_REGEX.test(trimmed);
 	const spIdMatch = trimmed.match(SP_ID_REGEX);
 	const spId = spIdMatch ? spIdMatch[1]!.trim() : null;
+
+	const tagsRaw = extractInlineField(trimmed, TAGS_REGEX);
+	const dueRaw = extractInlineField(trimmed, DUE_REGEX);
+	const project = extractInlineField(trimmed, PROJECT_REGEX);
+
 	const title = trimmed
 		.replace(/^- \[.\] /, '')
 		.replace(SP_ID_REGEX, '')
+		.replace(TAGS_REGEX, '')
+		.replace(DUE_REGEX, '')
+		.replace(PROJECT_REGEX, '')
 		.trim();
 
-	return { raw: trimmed, title, indentLevel, isDone, spId, lineNumber, filePath };
+	const tags = tagsRaw
+		? tagsRaw
+				.split(/[,|]/)
+				.map((t) => t.trim())
+				.filter((t) => t.length > 0)
+		: [];
+
+	return {
+		raw: trimmed,
+		title,
+		indentLevel,
+		isDone,
+		spId,
+		tags,
+		dueRaw,
+		project,
+		lineNumber,
+		filePath,
+	};
 }
 
 export function extractAllTasks(content: string, filePath: string): TaskLine[] {

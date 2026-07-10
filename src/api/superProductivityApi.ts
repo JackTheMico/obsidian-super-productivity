@@ -1,5 +1,5 @@
 import { requestUrl } from 'obsidian';
-import type { SPTask, SPProject, CreateTaskParams, UpdateTaskParams } from './types';
+import type { SPTask, SPProject, SPTag, CreateTaskParams, UpdateTaskParams } from './types';
 
 interface ApiResponse<T> {
 	ok: boolean;
@@ -56,5 +56,9 @@ export class SuperProductivityApi {
 
 	async getProjects(): Promise<SPProject[]> {
 		return this.request<SPProject[]>('GET', '/projects');
+	}
+
+	async getTags(): Promise<SPTag[]> {
+		return this.request<SPTag[]>('GET', '/tags');
 	}
 }

@@ -8,6 +8,10 @@ export interface SuperProductivitySettings {
 	autoCreateDeepLink: boolean;
 	enablePolling: boolean;
 	enableSubtaskSync: boolean;
+	syncTags: boolean;
+	syncDueDate: boolean;
+	autoSyncOnIdle: boolean;
+	autoSyncDebounceSeconds: number;
 	taskStateCache: Record<string, boolean>;
 }
 
@@ -18,6 +22,10 @@ export const DEFAULT_SETTINGS: SuperProductivitySettings = {
 	autoCreateDeepLink: true,
 	enablePolling: true,
 	enableSubtaskSync: true,
+	syncTags: true,
+	syncDueDate: true,
+	autoSyncOnIdle: true,
+	autoSyncDebounceSeconds: 3,
 	taskStateCache: {},
 };
 
@@ -111,6 +119,58 @@ export class SyncSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.enableSubtaskSync = value;
 						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Sync Tags')
+			.setDesc('将任务行中的 [tags:: a, b] 同步为 SP 标签（需 SP 中已存在同名标签）')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.syncTags)
+					.onChange(async (value) => {
+						this.plugin.settings.syncTags = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Sync Due Date')
+			.setDesc('将任务行中的 [due:: 2026-07-12] 或 [due:: 2026-07-12 15:00] 同步为 SP 截止时间')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.syncDueDate)
+					.onChange(async (value) => {
+						this.plugin.settings.syncDueDate = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Auto-sync on idle')
+			.setDesc('停止编辑当前文件后，自动将未同步的任务推送到 SP')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoSyncOnIdle)
+					.onChange(async (value) => {
+						this.plugin.settings.autoSyncOnIdle = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Auto-sync debounce')
+			.setDesc('停止编辑后等待多少秒再自动同步（防抖）')
+			.addText((text) =>
+				text
+					.setPlaceholder('3')
+					.setValue(String(this.plugin.settings.autoSyncDebounceSeconds))
+					.onChange(async (value) => {
+						const num = parseInt(value, 10);
+						if (num > 0) {
+							this.plugin.settings.autoSyncDebounceSeconds = num;
+							await this.plugin.saveSettings();
+						}
 					}),
 			);
 

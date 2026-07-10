@@ -9,6 +9,7 @@ import {
 } from './obsidianTaskParser';
 import type { TaskLine } from './obsidianTaskParser';
 import { createDeepLink } from '../utils/deepLink';
+import { parseDue, resolveTagIds, resolveProjectId } from '../utils/taskFields';
 
 export class TaskSyncService {
 	private api: SuperProductivityApi;
@@ -17,6 +18,7 @@ export class TaskSyncService {
 	private settings: SuperProductivitySettings;
 	private polling = false;
 	private cacheInitialized = false;
+	suppressAutoSync = false;
 
 	constructor(
 		app: App,
@@ -42,10 +44,13 @@ export class TaskSyncService {
 		content: string,
 	): Promise<boolean> {
 		try {
+			this.suppressAutoSync = true;
 			await this.vault.modify(file, content);
 			return true;
 		} catch {
 			return false;
+		} finally {
+			this.suppressAutoSync = false;
 		}
 	}
 
@@ -67,6 +72,7 @@ export class TaskSyncService {
 		}
 
 		try {
+			this.suppressAutoSync = true;
 			const content = await this.readFileSafe(file);
 			const allTasks = extractAllTasks(content, file.path);
 			const parentSpId = this.findParentSpId(task, allTasks);
@@ -75,11 +81,17 @@ export class TaskSyncService {
 				? createDeepLink(this.app, file, task.lineNumber)
 				: undefined;
 
+			const { tagIds, projectId, due } = await this.resolveTaskFields(
+				task,
+			);
+
 			const spTask = await this.api.createTask({
 				title: task.title,
 				notes,
-				projectId: this.settings.defaultProjectId || undefined,
+				projectId: projectId || undefined,
 				parentId: parentSpId,
+				tagIds: tagIds.length ? tagIds : undefined,
+				...due,
 			});
 
 			const newLine = addSpId(editor.getLine(cursor.line), spTask.id);
@@ -89,6 +101,8 @@ export class TaskSyncService {
 			new Notice('Task sent to Super Productivity');
 		} catch (e) {
 			new Notice(`Failed to send task: ${(e as Error).message}`);
+		} finally {
+			this.suppressAutoSync = false;
 		}
 	}
 
@@ -103,6 +117,9 @@ export class TaskSyncService {
 		}
 
 		try {
+			const { tagIds, projectIds, due } =
+				await this.resolveTaskFieldsBulk(activeTasks);
+
 			const spIds: { lineNumber: number; spId: string }[] = [];
 
 			for (const task of activeTasks) {
@@ -115,8 +132,13 @@ export class TaskSyncService {
 				const spTask = await this.api.createTask({
 					title: task.title,
 					notes,
-					projectId: this.settings.defaultProjectId || undefined,
+					projectId:
+						projectIds[task.lineNumber] ||
+						this.settings.defaultProjectId ||
+						undefined,
 					parentId: parentSpId,
+					tagIds: task.tags.length ? tagIds[task.lineNumber] : undefined,
+					...due[task.lineNumber],
 				});
 
 				spIds.push({ lineNumber: task.lineNumber, spId: spTask.id });
@@ -136,6 +158,125 @@ export class TaskSyncService {
 		} catch (e) {
 			new Notice(`Failed to send tasks: ${(e as Error).message}`);
 		}
+	}
+
+	private async resolveTaskFields(task: TaskLine): Promise<{
+		tagIds: string[];
+		projectId: string;
+		due: { dueDay?: string; dueWithTime?: number };
+	}> {
+		const tagIds: string[] = [];
+		if (this.settings.syncTags && task.tags.length) {
+			const result = await resolveTagIds(this.api, task.tags);
+			tagIds.push(...result.ids);
+			if (result.missing.length) {
+				new Notice(
+					`Tags not found in SP (skipped): ${result.missing.join(', ')}`,
+				);
+			}
+		}
+
+		let projectId = this.settings.defaultProjectId;
+		if (task.project) {
+			const resolved = await resolveProjectId(
+				this.api,
+				task.project,
+				this.settings.defaultProjectId,
+			);
+			projectId = resolved.id;
+			if (!resolved.resolved) {
+				new Notice(
+					`Project "${task.project}" not found in SP, using default`,
+				);
+			}
+		}
+
+		let due: { dueDay?: string; dueWithTime?: number } = {};
+		if (this.settings.syncDueDate) {
+			const parsed = parseDue(task.dueRaw);
+			if (parsed) {
+				due = parsed;
+			} else if (task.dueRaw) {
+				new Notice(`Invalid due date: ${task.dueRaw}`);
+			}
+		}
+
+		return { tagIds, projectId, due };
+	}
+
+	private async resolveTaskFieldsBulk(tasks: TaskLine[]): Promise<{
+		tagIds: Record<number, string[]>;
+		projectIds: Record<number, string | undefined>;
+		due: Record<number, { dueDay?: string; dueWithTime?: number }>;
+	}> {
+		const tagIds: Record<number, string[]> = {};
+		const projectIds: Record<number, string | undefined> = {};
+		const due: Record<number, { dueDay?: string; dueWithTime?: number }> =
+			{};
+
+		const allTagNames = new Set<string>();
+		const projectNames = new Set<string>();
+		for (const task of tasks) {
+			if (this.settings.syncTags) {
+				task.tags.forEach((t) => allTagNames.add(t));
+			}
+			if (task.project) projectNames.add(task.project);
+			if (this.settings.syncDueDate) {
+				const parsed = parseDue(task.dueRaw);
+				due[task.lineNumber] = parsed ?? {};
+				if (!parsed && task.dueRaw) {
+					new Notice(`Invalid due date: ${task.dueRaw}`);
+				}
+			} else {
+				due[task.lineNumber] = {};
+			}
+		}
+
+		const tagNameToId = new Map<string, string>();
+		if (this.settings.syncTags && allTagNames.size) {
+			const result = await resolveTagIds(this.api, [...allTagNames]);
+			const names = [...allTagNames];
+			result.ids.forEach((id, i) => {
+				const name = names[i]!;
+				tagNameToId.set(name.toLowerCase(), id);
+			});
+			if (result.missing.length) {
+				new Notice(
+					`Tags not found in SP (skipped): ${result.missing.join(', ')}`,
+				);
+			}
+		}
+
+		const projectNameToId = new Map<string, string>();
+		if (projectNames.size) {
+			for (const name of projectNames) {
+				const resolved = await resolveProjectId(
+					this.api,
+					name,
+					this.settings.defaultProjectId,
+				);
+				if (resolved.resolved) {
+					projectNameToId.set(name.toLowerCase(), resolved.id);
+				} else {
+					new Notice(`Project "${name}" not found in SP, using default`);
+				}
+			}
+		}
+
+		for (const task of tasks) {
+			if (this.settings.syncTags && task.tags.length) {
+				tagIds[task.lineNumber] = task.tags
+					.map((t) => tagNameToId.get(t.toLowerCase()))
+					.filter((id): id is string => !!id);
+			} else {
+				tagIds[task.lineNumber] = [];
+			}
+			projectIds[task.lineNumber] = task.project
+				? projectNameToId.get(task.project.toLowerCase())
+				: undefined;
+		}
+
+		return { tagIds, projectIds, due };
 	}
 
 	private findParentSpId(

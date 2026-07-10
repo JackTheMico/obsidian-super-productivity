@@ -1,4 +1,12 @@
-import { Editor, MarkdownFileInfo, MarkdownView, Notice, Plugin } from 'obsidian';
+import {
+	Editor,
+	MarkdownFileInfo,
+	MarkdownView,
+	Notice,
+	Plugin,
+	TAbstractFile,
+	TFile,
+} from 'obsidian';
 import {
 	DEFAULT_SETTINGS,
 	SuperProductivitySettings,
@@ -12,6 +20,8 @@ export default class SuperProductivitySyncPlugin extends Plugin {
 	api!: SuperProductivityApi;
 	syncService!: TaskSyncService;
 	private pollingId: number | null = null;
+	private autoSyncTimer: number | null = null;
+	private autoSyncFile: TFile | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -34,10 +44,12 @@ export default class SuperProductivitySyncPlugin extends Plugin {
 		statusBarEl.addClass('sp-sync-status');
 
 		this.restartPolling();
+		this.registerAutoSync();
 	}
 
 	onunload() {
 		this.clearPolling();
+		this.clearAutoSync();
 	}
 
 	initModules() {
@@ -72,6 +84,38 @@ export default class SuperProductivitySyncPlugin extends Plugin {
 			window.clearInterval(this.pollingId);
 			this.pollingId = null;
 		}
+	}
+
+	private registerAutoSync() {
+		this.registerEvent(
+			this.app.vault.on('modify', (file: TAbstractFile) => {
+				if (!(file instanceof TFile) || file.extension !== 'md') {
+					return;
+				}
+				if (!this.settings.autoSyncOnIdle) return;
+				if (this.syncService?.suppressAutoSync) return;
+
+				this.autoSyncFile = file;
+				if (this.autoSyncTimer !== null) {
+					window.clearTimeout(this.autoSyncTimer);
+				}
+				this.autoSyncTimer = window.setTimeout(() => {
+					this.autoSyncTimer = null;
+					const target = this.autoSyncFile;
+					this.autoSyncFile = null;
+					if (!target) return;
+					void this.syncService.pushAllTasks(target);
+				}, this.settings.autoSyncDebounceSeconds * 1000);
+			}),
+		);
+	}
+
+	private clearAutoSync() {
+		if (this.autoSyncTimer !== null) {
+			window.clearTimeout(this.autoSyncTimer);
+			this.autoSyncTimer = null;
+		}
+		this.autoSyncFile = null;
 	}
 
 	private registerCommands() {
