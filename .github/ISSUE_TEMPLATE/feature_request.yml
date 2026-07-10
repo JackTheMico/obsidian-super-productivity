@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest a new feature or improvement
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an idea! Please describe it clearly.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem would this feature solve? What are you trying to achieve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or behavior you'd like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: sp-api
+    attributes:
+      label: Super Productivity API impact
+      description: Does this require new Super Productivity REST API capabilities (e.g. creating tags/projects, webhooks)?
+      placeholder: "Read-only tag listing only; would need API support for ..."
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any alternative solutions or workarounds you've considered.
