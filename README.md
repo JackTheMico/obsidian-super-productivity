@@ -1,92 +1,91 @@
-# Obsidian Sample Plugin
+# Obsidian Super Productivity Sync
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+双向同步 Obsidian 任务（checkbox）与 [Super Productivity](https://github.com/johannesjo/super-productivity) 的插件。
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+## 功能
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
+- **推送 (Obsidian → SP)**：将当前行或全文的 `- [ ]` 待办事项发送到 Super Productivity
+- **回写 (SP → Obsidian)**：在 SP 中标记任务完成后，自动将 Obsidian 中对应的 `- [ ]` 改为 `- [x]`
+- **双向状态同步**：在 Obsidian 中勾选/取消勾选后，自动同步到 SP；反之亦然
+- **子任务支持**：Obsidian 中的缩进层级自动映射为 SP 的子任务
+- **深链接**：在 SP 任务备注中嵌入 Obsidian deep link（点击直接跳回原笔记位置）
 
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and outputs a Notice on click.
-- Registers a global interval which logs 'setInterval' to the console.
+## 架构
 
-## First time developing plugins?
-
-Quick starting guide for new plugin devs:
-
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `src/main.ts` to `main.js`.
-- Make changes to `src/main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
-
-## Releasing new releases
-
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
-
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
-
-## Adding your plugin to the community plugin list
-
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
-
-## How to use
-
-- Clone this repo.
-- Make sure your NodeJS is at least v18 (`node --version`).
-- `npm i` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
-
-## Manually installing the plugin
-
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
-
-## Improve code quality with eslint
-
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code.
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-	"fundingUrl": "https://buymeacoffee.com"
-}
+```
+┌──────────────────────────┐      HTTP POST /tasks       ┌──────────────────────┐
+│    Obsidian Plugin       │ ──────────────────────────► │ Super Productivity  │
+│                          │     (创建/更新任务)          │   Local REST API     │
+│  ┌────────────────────┐  │                              │   :3876              │
+│  │ Task Parser        │  │ ◄────────────────────────── │                      │
+│  │ (解析 markdown)    │  │     Poll GET /tasks          │                      │
+│  └────────────────────┘  │     (每30秒轮询状态变更)     │                      │
+│  ┌────────────────────┐  │                              └──────────────────────┘
+│  │ File Modifier      │  │  ← 检测到 SP 任务状态变化时，修改本地文件
+│  │ (Vault.modify)     │  │
+│  └────────────────────┘  │
+└──────────────────────────┘
 ```
 
-If you have multiple URLs, you can also do:
+由于 Super Productivity 没有 Webhook 机制，插件采用**轮询（Polling）** 方式检测状态变化。
 
-```json
-{
-	"fundingUrl": {
-		"Buy Me a Coffee": "https://buymeacoffee.com",
-		"GitHub Sponsor": "https://github.com/sponsors",
-		"Patreon": "https://www.patreon.com/"
-	}
-}
+## 任务关联机制
+
+- 发送任务到 SP 时，在 Obsidian checkbox 行尾追加 `[sp_id:: <SP_TASK_ID>]`
+- 轮询时通过 `sp_id` 关联两边任务
+- 支持缩进表示父子关系（最多一级子任务，超过一级拍平）
+
+## 设置
+
+| 设置项 | 默认值 | 说明 |
+|---|---|---|
+| SP API 地址 | `http://127.0.0.1:3876` | Super Productivity 的 REST API 地址 |
+| 默认项目 ID | 空（收件箱） | 发送任务时的默认项目 |
+| 轮询间隔 | 30 秒 | 状态同步的轮询频率 |
+| 自动创建深链接 | 开启 | 在 SP 备注中嵌入 Obsidian 链接 |
+| 启用轮询 | 开启 | 是否启动定时轮询 |
+| 子任务同步 | 开启 | 是否将缩进层级映射为 SP 子任务 |
+
+## 命令
+
+| 命令 | 说明 |
+|---|---|
+| Send current task to Super Productivity | 发送光标所在行的 checkbox |
+| Send all tasks to Super Productivity | 发送当前文件所有未完成的 checkbox |
+| Force sync now | 立即执行一次完整同步 |
+| Test SP connection | 测试 API 连接 |
+
+## 开发
+
+### 项目结构
+
+```
+src/
+├── main.ts                        # 插件入口，生命周期，命令注册
+├── settings.ts                    # 设置界面与默认值
+├── api/
+│   ├── types.ts                   # SP API 类型定义
+│   └── superProductivityApi.ts    # SP REST API 客户端
+├── sync/
+│   ├── obsidianTaskParser.ts      # Markdown checkbox 解析/修改
+│   └── taskSyncService.ts         # 核心同步引擎
+└── utils/
+    ├── constants.ts               # 常量定义
+    └── deepLink.ts                # Obsidian URI 生成
 ```
 
-## API Documentation
+### 构建
 
-See https://docs.obsidian.md
+```bash
+npm install
+npm run dev    # 开发模式（监听文件变化）
+npm run build  # 生产构建
+npm run lint   # ESLint 检查
+```
+
+## 安装
+
+1. 在 Obsidian 中启用插件
+2. 在 Super Productivity 中启用 **Settings → Misc → Enable local REST API**
+3. 在插件设置中填写 SP API 地址（默认 `http://127.0.0.1:3876`）
+4. 点击「测试连接」确认
