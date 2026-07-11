@@ -120,20 +120,34 @@ export function formatEstimate(ms: number | null | undefined): string | null {
 
 export function parseSchedule(raw: string | null): number | null {
 	if (!raw) return null;
-	const trimmed = raw.trim();
-	const ms = Date.parse(
-		/^\d{4}-\d{2}-\d{2}$/.test(trimmed)
-			? `${trimmed}T00:00:00`
-			: trimmed,
+	const m = raw.trim().match(
+		/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{1,2}):(\d{2}))?$/,
 	);
+	if (!m) return null;
+	const y = Number(m[1]);
+	const mo = Number(m[2]);
+	const d = Number(m[3]);
+	const h = m[4] ? Number(m[4]) : 0;
+	const mi = m[5] ? Number(m[5]) : 0;
+	if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) {
+		return null;
+	}
+	const ms = new Date(y, mo - 1, d, h, mi).getTime();
 	return isNaN(ms) ? null : ms;
 }
 
 export function formatSchedule(ms: number | null | undefined): string | null {
 	if (!ms) return null;
-	const d = new Date(ms);
-	if (isNaN(d.getTime())) return null;
-	return d.toISOString().slice(0, 10);
+	const dt = new Date(ms);
+	if (isNaN(dt.getTime())) return null;
+	const y = dt.getFullYear();
+	const mo = String(dt.getMonth() + 1).padStart(2, '0');
+	const d = String(dt.getDate()).padStart(2, '0');
+	const hh = String(dt.getHours()).padStart(2, '0');
+	const mi = String(dt.getMinutes()).padStart(2, '0');
+	return hh === '00' && mi === '00'
+		? `${y}-${mo}-${d}`
+		: `${y}-${mo}-${d}T${hh}:${mi}`;
 }
 
 export interface ResolveResult {

@@ -150,7 +150,7 @@ export class SyncSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Sync extra fields')
-			.setDesc('将 @estimate:HH:MM（预估时长）、@schedule:日期（计划时间）与 @priority:标签 同步到 sp（输入 @ 可获取智能提示）')
+			.setDesc('将 @estimate:HH:MM（预估时长）、@schedule:日期 或 日期T时间（计划时间，如 2026-07-15T15:30）与 @priority:标签 同步到 sp（输入 @ 可获取智能提示）')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.syncExtraFields)

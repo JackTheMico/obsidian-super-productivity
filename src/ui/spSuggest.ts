@@ -90,7 +90,7 @@ export class SPSuggest extends EditorSuggest<SPSuggestion> {
 			{ text: 'tag:', displayText: 'tag', description: 'SP 标签' },
 			{ text: 'project:', displayText: 'project', description: 'SP 项目' },
 			{ text: 'estimate:', displayText: 'estimate', description: '预估时长 HH:MM' },
-			{ text: 'schedule:', displayText: 'schedule', description: '计划日期 YYYY-MM-DD' },
+			{ text: 'schedule:', displayText: 'schedule', description: '计划日期或 日期T时间，如 2026-07-15T15:30' },
 			{ text: 'priority:', displayText: 'priority', description: 'SP 标签（作为优先级）' },
 		];
 		const q = this.query.toLowerCase();
@@ -98,23 +98,24 @@ export class SPSuggest extends EditorSuggest<SPSuggestion> {
 	}
 
 	private getEstimateSuggestions(): SPSuggestion[] {
-		const items: SPSuggestion[] = [
-			{
-				text: 'estimate:00:30',
-				displayText: '00:30',
-				description: '30 分钟',
-			},
-			{
-				text: 'estimate:01:00',
-				displayText: '01:00',
-				description: '1 小时',
-			},
-			{
-				text: 'estimate:02:30',
-				displayText: '02:30',
-				description: '2 小时 30 分钟',
-			},
+		const presets: { value: string; label: string; desc: string }[] = [
+			{ value: '00:15', label: '00:15', desc: '15 分钟' },
+			{ value: '00:30', label: '00:30', desc: '30 分钟' },
+			{ value: '00:45', label: '00:45', desc: '45 分钟' },
+			{ value: '01:00', label: '01:00', desc: '1 小时' },
+			{ value: '01:30', label: '01:30', desc: '1 小时 30 分钟' },
+			{ value: '02:00', label: '02:00', desc: '2 小时' },
+			{ value: '02:30', label: '02:30', desc: '2 小时 30 分钟' },
+			{ value: '03:00', label: '03:00', desc: '3 小时' },
+			{ value: '04:00', label: '04:00', desc: '4 小时' },
+			{ value: '05:00', label: '05:00', desc: '5 小时' },
+			{ value: '08:00', label: '08:00', desc: '8 小时' },
 		];
+		const items: SPSuggestion[] = presets.map((p) => ({
+			text: `estimate:${p.value}`,
+			displayText: p.label,
+			description: p.desc,
+		}));
 		const q = this.query.toLowerCase();
 		return q
 			? items.filter(
@@ -127,21 +128,29 @@ export class SPSuggest extends EditorSuggest<SPSuggestion> {
 
 	private getScheduleSuggestions(): SPSuggestion[] {
 		const now = new Date();
-		const toIso = (d: Date) => d.toISOString().slice(0, 10);
+		const toLocalIso = (d: Date) =>
+			`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+				2,
+				'0')}-${String(d.getDate()).padStart(2, '0')}`;
 		const items: SPSuggestion[] = [
 			{
-				text: `schedule:${toIso(now)}`,
+				text: `schedule:${toLocalIso(now)}`,
 				displayText: 'today',
-				description: toIso(now),
+				description: toLocalIso(now),
 			},
 			{
-				text: `schedule:${toIso(
+				text: `schedule:${toLocalIso(
 					new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1),
 				)}`,
 				displayText: 'tomorrow',
-				description: toIso(
+				description: toLocalIso(
 					new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1),
 				),
+			},
+			{
+				text: `schedule:${toLocalIso(now)}T15:30`,
+				displayText: `${toLocalIso(now)}T15:30`,
+				description: '今日 15:30（精确到分钟）',
 			},
 		];
 		const q = this.query.toLowerCase();
@@ -166,7 +175,10 @@ export class SPSuggest extends EditorSuggest<SPSuggestion> {
 			'friday',
 			'saturday',
 		];
-		const toIso = (d: Date) => d.toISOString().slice(0, 10);
+		const toIso = (d: Date) =>
+			`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+				2,
+				'0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 		const items: SPSuggestion[] = [
 			{
