@@ -139,7 +139,7 @@ src/
 │   ├── obsidianTaskParser.ts      # Markdown checkbox parsing & modification
 │   └── taskSyncService.ts         # Core sync engine (push, poll, write-back)
 ├── ui/
-│   └── spSuggest.ts               # Editor autocomplete for @tag/@due/@project
+│   └── spSuggest.ts               # Editor autocomplete for @tag/@due/@project/@estimate/@schedule/@priority
 └── utils/
     ├── constants.ts               # Regex constants
     ├── deepLink.ts                # Obsidian deep link URI generation

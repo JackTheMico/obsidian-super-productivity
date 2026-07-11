@@ -10,6 +10,7 @@ export interface SuperProductivitySettings {
 	enableSubtaskSync: boolean;
 	syncTags: boolean;
 	syncDueDate: boolean;
+	syncExtraFields: boolean;
 	autoSyncOnIdle: boolean;
 	autoSyncDebounceSeconds: number;
 	taskStateCache: Record<string, boolean>;
@@ -24,6 +25,7 @@ export const DEFAULT_SETTINGS: SuperProductivitySettings = {
 	enableSubtaskSync: true,
 	syncTags: true,
 	syncDueDate: true,
+	syncExtraFields: true,
 	autoSyncOnIdle: true,
 	autoSyncDebounceSeconds: 3,
 	taskStateCache: {},
@@ -142,6 +144,18 @@ export class SyncSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.syncDueDate)
 					.onChange(async (value) => {
 						this.plugin.settings.syncDueDate = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Sync extra fields')
+			.setDesc('将 @estimate:HH:MM（预估时长）、@schedule:日期（计划时间）与 @priority:标签 同步到 sp（输入 @ 可获取智能提示）')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.syncExtraFields)
+					.onChange(async (value) => {
+						this.plugin.settings.syncExtraFields = value;
 						await this.plugin.saveSettings();
 					}),
 			);

@@ -5,6 +5,11 @@ export interface ParsedDue {
 	dueWithTime?: number;
 }
 
+export interface ParsedExtraFields {
+	timeEstimate?: number;
+	plannedAt?: number | null;
+}
+
 const WEEKDAY_MAP: Record<string, number> = {
 	周日: 0,
 	星期日: 0,
@@ -93,6 +98,42 @@ export function parseDue(raw: string | null): ParsedDue | null {
 	}
 
 	return null;
+}
+
+export function parseEstimate(raw: string | null): number | null {
+	if (!raw) return null;
+	const match = raw.trim().match(/^(\d{1,3}):(\d{2})$/);
+	if (!match) return null;
+	const hours = parseInt(match[1]!, 10);
+	const minutes = parseInt(match[2]!, 10);
+	if (minutes >= 60) return null;
+	return (hours * 60 + minutes) * 60 * 1000;
+}
+
+export function formatEstimate(ms: number | null | undefined): string | null {
+	if (!ms || ms <= 0) return null;
+	const totalMinutes = Math.round(ms / 60000);
+	const hours = Math.floor(totalMinutes / 60);
+	const minutes = totalMinutes % 60;
+	return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+export function parseSchedule(raw: string | null): number | null {
+	if (!raw) return null;
+	const trimmed = raw.trim();
+	const ms = Date.parse(
+		/^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+			? `${trimmed}T00:00:00`
+			: trimmed,
+	);
+	return isNaN(ms) ? null : ms;
+}
+
+export function formatSchedule(ms: number | null | undefined): string | null {
+	if (!ms) return null;
+	const d = new Date(ms);
+	if (isNaN(d.getTime())) return null;
+	return d.toISOString().slice(0, 10);
 }
 
 export interface ResolveResult {

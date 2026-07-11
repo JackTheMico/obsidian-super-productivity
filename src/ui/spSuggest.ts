@@ -15,7 +15,7 @@ interface SPSuggestion {
 	description?: string;
 }
 
-type SuggestMode = 'type' | 'due' | 'tag' | 'project';
+type SuggestMode = 'type' | 'due' | 'tag' | 'project' | 'estimate' | 'schedule' | 'priority';
 
 export class SPSuggest extends EditorSuggest<SPSuggestion> {
 	private plugin: SuperProductivitySyncPlugin;
@@ -46,7 +46,9 @@ export class SPSuggest extends EditorSuggest<SPSuggestion> {
 		this.mode = 'type';
 		this.query = afterAt;
 
-		const typeMatch = afterAt.match(/^(due|tag|project):(.*)$/);
+		const typeMatch = afterAt.match(
+			/^(due|tag|project|estimate|schedule|priority):(.*)$/,
+		);
 		if (typeMatch) {
 			this.mode = (typeMatch[1] ?? 'type') as SuggestMode;
 			this.query = typeMatch[2] ?? '';
@@ -71,6 +73,12 @@ export class SPSuggest extends EditorSuggest<SPSuggestion> {
 				return await this.getTagSuggestions();
 			case 'project':
 				return await this.getProjectSuggestions();
+			case 'estimate':
+				return this.getEstimateSuggestions();
+			case 'schedule':
+				return this.getScheduleSuggestions();
+			case 'priority':
+				return await this.getTagSuggestions();
 			default:
 				return [];
 		}
@@ -81,9 +89,70 @@ export class SPSuggest extends EditorSuggest<SPSuggestion> {
 			{ text: 'due:', displayText: 'due', description: '截止日期' },
 			{ text: 'tag:', displayText: 'tag', description: 'SP 标签' },
 			{ text: 'project:', displayText: 'project', description: 'SP 项目' },
+			{ text: 'estimate:', displayText: 'estimate', description: '预估时长 HH:MM' },
+			{ text: 'schedule:', displayText: 'schedule', description: '计划日期 YYYY-MM-DD' },
+			{ text: 'priority:', displayText: 'priority', description: 'SP 标签（作为优先级）' },
 		];
 		const q = this.query.toLowerCase();
 		return q ? items.filter((i) => i.text.toLowerCase().includes(q)) : items;
+	}
+
+	private getEstimateSuggestions(): SPSuggestion[] {
+		const items: SPSuggestion[] = [
+			{
+				text: 'estimate:00:30',
+				displayText: '00:30',
+				description: '30 分钟',
+			},
+			{
+				text: 'estimate:01:00',
+				displayText: '01:00',
+				description: '1 小时',
+			},
+			{
+				text: 'estimate:02:30',
+				displayText: '02:30',
+				description: '2 小时 30 分钟',
+			},
+		];
+		const q = this.query.toLowerCase();
+		return q
+			? items.filter(
+					(i) =>
+						i.displayText.toLowerCase().includes(q) ||
+						i.text.toLowerCase().includes(q),
+				)
+			: items;
+	}
+
+	private getScheduleSuggestions(): SPSuggestion[] {
+		const now = new Date();
+		const toIso = (d: Date) => d.toISOString().slice(0, 10);
+		const items: SPSuggestion[] = [
+			{
+				text: `schedule:${toIso(now)}`,
+				displayText: 'today',
+				description: toIso(now),
+			},
+			{
+				text: `schedule:${toIso(
+					new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1),
+				)}`,
+				displayText: 'tomorrow',
+				description: toIso(
+					new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1),
+				),
+			},
+		];
+		const q = this.query.toLowerCase();
+		return q
+			? items.filter(
+					(i) =>
+						i.displayText.toLowerCase().includes(q) ||
+						(i.description &&
+							i.description.toLowerCase().includes(q)),
+				)
+			: items;
 	}
 
 	private getDueSuggestions(): SPSuggestion[] {

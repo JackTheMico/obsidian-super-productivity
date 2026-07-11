@@ -1,15 +1,25 @@
 import { App, Editor, Notice, TFile, Vault } from 'obsidian';
 import { SuperProductivityApi } from '../api/superProductivityApi';
+import type { SPTask } from '../api/types';
 import type { SuperProductivitySettings } from '../settings';
 import {
 	parseLine,
 	extractAllTasks,
 	addSpId,
 	markDone,
+	applyExtraFieldsToLine,
 } from './obsidianTaskParser';
 import type { TaskLine } from './obsidianTaskParser';
 import { createDeepLink } from '../utils/deepLink';
-import { parseDue, resolveTagIds, resolveProjectId } from '../utils/taskFields';
+import {
+	parseDue,
+	parseEstimate,
+	parseSchedule,
+	formatEstimate,
+	formatSchedule,
+	resolveTagIds,
+	resolveProjectId,
+} from '../utils/taskFields';
 
 export class TaskSyncService {
 	private api: SuperProductivityApi;
@@ -81,9 +91,8 @@ export class TaskSyncService {
 				? createDeepLink(this.app, file, task.lineNumber)
 				: undefined;
 
-			const { tagIds, projectId, due } = await this.resolveTaskFields(
-				task,
-			);
+			const { tagIds, projectId, due, timeEstimate, plannedAt } =
+				await this.resolveTaskFields(task);
 
 			const spTask = await this.api.createTask({
 				title: task.title,
@@ -92,6 +101,8 @@ export class TaskSyncService {
 				parentId: parentSpId,
 				tagIds: tagIds.length ? tagIds : undefined,
 				...due,
+				timeEstimate,
+				plannedAt,
 			});
 
 			const newLine = addSpId(editor.getLine(cursor.line), spTask.id);
@@ -117,7 +128,7 @@ export class TaskSyncService {
 		}
 
 		try {
-			const { tagIds, projectIds, due } =
+			const { tagIds, projectIds, due, timeEstimates, plannedAts } =
 				await this.resolveTaskFieldsBulk(activeTasks);
 
 			const spIds: { lineNumber: number; spId: string }[] = [];
@@ -139,6 +150,8 @@ export class TaskSyncService {
 					parentId: parentSpId,
 					tagIds: task.tags.length ? tagIds[task.lineNumber] : undefined,
 					...due[task.lineNumber],
+					timeEstimate: timeEstimates[task.lineNumber],
+					plannedAt: plannedAts[task.lineNumber],
 				});
 
 				spIds.push({ lineNumber: task.lineNumber, spId: spTask.id });
@@ -164,10 +177,17 @@ export class TaskSyncService {
 		tagIds: string[];
 		projectId: string;
 		due: { dueDay?: string; dueWithTime?: number };
+		timeEstimate?: number;
+		plannedAt?: number | null;
 	}> {
+		const allTagNames = [...task.tags];
+		if (this.settings.syncExtraFields) {
+			allTagNames.push(...task.priorityRaw);
+		}
+
 		const tagIds: string[] = [];
-		if (this.settings.syncTags && task.tags.length) {
-			const result = await resolveTagIds(this.api, task.tags);
+		if (this.settings.syncTags && allTagNames.length) {
+			const result = await resolveTagIds(this.api, allTagNames);
 			tagIds.push(...result.ids);
 			if (result.missing.length) {
 				new Notice(
@@ -201,24 +221,48 @@ export class TaskSyncService {
 			}
 		}
 
-		return { tagIds, projectId, due };
+		let timeEstimate: number | undefined;
+		let plannedAt: number | null | undefined;
+		if (this.settings.syncExtraFields) {
+			const est = parseEstimate(task.estimateRaw);
+			if (est === null && task.estimateRaw) {
+				new Notice(`Invalid estimate: ${task.estimateRaw}`);
+			} else {
+				timeEstimate = est ?? undefined;
+			}
+			const sched = parseSchedule(task.scheduleRaw);
+			if (sched === null && task.scheduleRaw) {
+				new Notice(`Invalid schedule: ${task.scheduleRaw}`);
+			} else {
+				plannedAt = sched ?? null;
+			}
+		}
+
+		return { tagIds, projectId, due, timeEstimate, plannedAt };
 	}
 
 	private async resolveTaskFieldsBulk(tasks: TaskLine[]): Promise<{
 		tagIds: Record<number, string[]>;
 		projectIds: Record<number, string | undefined>;
 		due: Record<number, { dueDay?: string; dueWithTime?: number }>;
+		timeEstimates: Record<number, number | undefined>;
+		plannedAts: Record<number, number | null | undefined>;
 	}> {
 		const tagIds: Record<number, string[]> = {};
 		const projectIds: Record<number, string | undefined> = {};
 		const due: Record<number, { dueDay?: string; dueWithTime?: number }> =
 			{};
+		const timeEstimates: Record<number, number | undefined> = {};
+		const plannedAts: Record<number, number | null | undefined> = {};
 
 		const allTagNames = new Set<string>();
 		const projectNames = new Set<string>();
 		for (const task of tasks) {
 			if (this.settings.syncTags) {
 				task.tags.forEach((t) => allTagNames.add(t));
+				if (this.settings.syncExtraFields) {
+					task.priorityRaw.forEach((p) => allTagNames.add(p));
+				}
 			}
 			if (task.project) projectNames.add(task.project);
 			if (this.settings.syncDueDate) {
@@ -229,6 +273,23 @@ export class TaskSyncService {
 				}
 			} else {
 				due[task.lineNumber] = {};
+			}
+			if (this.settings.syncExtraFields) {
+				const est = parseEstimate(task.estimateRaw);
+				if (est === null && task.estimateRaw) {
+					new Notice(`Invalid estimate: ${task.estimateRaw}`);
+				} else {
+					timeEstimates[task.lineNumber] = est ?? undefined;
+				}
+				const sched = parseSchedule(task.scheduleRaw);
+				if (sched === null && task.scheduleRaw) {
+					new Notice(`Invalid schedule: ${task.scheduleRaw}`);
+				} else {
+					plannedAts[task.lineNumber] = sched ?? null;
+				}
+			} else {
+				timeEstimates[task.lineNumber] = undefined;
+				plannedAts[task.lineNumber] = undefined;
 			}
 		}
 
@@ -276,7 +337,7 @@ export class TaskSyncService {
 				: undefined;
 		}
 
-		return { tagIds, projectIds, due };
+		return { tagIds, projectIds, due, timeEstimates, plannedAts };
 	}
 
 	private findParentSpId(
@@ -316,8 +377,13 @@ export class TaskSyncService {
 				this.cacheInitialized = true;
 			}
 
-			await this.syncSpToObsidian();
-			await this.syncObsidianToSp();
+			const spTasks = await this.api.getTasks({
+				includeDone: true,
+				source: 'all',
+			});
+
+			await this.syncSpToObsidian(spTasks);
+			await this.syncObsidianToSp(spTasks);
 		} catch (e) {
 			console.error('Sync error:', e);
 		} finally {
@@ -337,12 +403,7 @@ export class TaskSyncService {
 		}
 	}
 
-	private async syncSpToObsidian(): Promise<void> {
-		const spTasks = await this.api.getTasks({
-			includeDone: true,
-			source: 'all',
-		});
-
+	private async syncSpToObsidian(spTasks: SPTask[]): Promise<void> {
 		for (const spTask of spTasks) {
 			if (!spTask.isDone) continue;
 
@@ -363,43 +424,102 @@ export class TaskSyncService {
 
 			const content = await this.readFileSafe(file);
 			const lines = content.split('\n');
-			lines[taskLine.lineNumber] = markDone(lines[taskLine.lineNumber]!);
-			const ok = await this.modifyFileSafe(
-				file,
-				lines.join('\n'),
-			);
+			let updatedLine = lines[taskLine.lineNumber]!;
+			updatedLine = markDone(updatedLine);
+
+			if (this.settings.syncExtraFields) {
+				const hasEstimateToken = taskLine.estimateRaw != null;
+				const hasScheduleToken = taskLine.scheduleRaw != null;
+				if (hasEstimateToken || hasScheduleToken) {
+					const noteEstimate = parseEstimate(taskLine.estimateRaw);
+					const noteSchedule = parseSchedule(taskLine.scheduleRaw);
+					const spEstimate = spTask.timeEstimate ?? undefined;
+					const spSchedule =
+						spTask.plannedAt === null ? null : spTask.plannedAt;
+
+					const fields: {
+						timeEstimate?: number | null;
+						plannedAt?: number | null;
+					} = {};
+					if (hasEstimateToken && noteEstimate !== spEstimate) {
+						fields.timeEstimate = spEstimate;
+					}
+					if (hasScheduleToken && noteSchedule !== spSchedule) {
+						fields.plannedAt = spSchedule;
+					}
+
+					if (fields.timeEstimate !== undefined || fields.plannedAt !== undefined) {
+						updatedLine = applyExtraFieldsToLine(
+							updatedLine,
+							fields,
+							formatEstimate,
+							formatSchedule,
+						);
+					}
+				}
+			}
+
+			lines[taskLine.lineNumber] = updatedLine;
+			const ok = await this.modifyFileSafe(file, lines.join('\n'));
 			if (ok) {
 				this.settings.taskStateCache[spTask.id] = true;
 			}
 		}
 	}
 
-	private async syncObsidianToSp(): Promise<void> {
+	private async syncObsidianToSp(spTasks: SPTask[]): Promise<void> {
+		const spTaskById = new Map(spTasks.map((t) => [t.id, t]));
 		const files = this.vault.getMarkdownFiles();
 		for (const file of files) {
 			const content = await this.readFileSafe(file);
 			for (const task of extractAllTasks(content, file.path)) {
 				if (!task.spId) continue;
 
-				const cached = this.settings.taskStateCache[task.spId];
+				const spTask = spTaskById.get(task.spId);
 
+				const cached = this.settings.taskStateCache[task.spId];
 				if (cached === undefined) {
 					this.settings.taskStateCache[task.spId] = task.isDone;
+				} else if (cached !== task.isDone && spTask) {
+					try {
+						await this.api.updateTask(task.spId, {
+							isDone: task.isDone,
+						});
+						this.settings.taskStateCache[task.spId] = task.isDone;
+					} catch (e) {
+						console.error(
+							`Failed to update SP task ${task.spId}:`,
+							e,
+						);
+					}
 					continue;
 				}
 
-				if (cached === task.isDone) continue;
+				if (!this.settings.syncExtraFields || !spTask) continue;
 
-				try {
-					await this.api.updateTask(task.spId, {
-						isDone: task.isDone,
-					});
-					this.settings.taskStateCache[task.spId] = task.isDone;
-				} catch (e) {
-					console.error(
-						`Failed to update SP task ${task.spId}:`,
-						e,
-					);
+				const noteEstimate = parseEstimate(task.estimateRaw) ?? undefined;
+				const noteSchedule = parseSchedule(task.scheduleRaw);
+				const noteScheduleNorm =
+					noteSchedule === null ? null : noteSchedule;
+				const spEstimate = spTask.timeEstimate ?? undefined;
+				const spSchedule =
+					spTask.plannedAt === null ? null : spTask.plannedAt;
+
+				if (
+					noteEstimate !== spEstimate ||
+					noteScheduleNorm !== spSchedule
+				) {
+					try {
+						await this.api.updateTask(task.spId, {
+							timeEstimate: noteEstimate,
+							plannedAt: noteScheduleNorm,
+						});
+					} catch (e) {
+						console.error(
+							`Failed to update SP task ${task.spId}:`,
+							e,
+						);
+					}
 				}
 			}
 		}

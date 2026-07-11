@@ -6,6 +6,9 @@ import {
 	AT_DUE_REGEX,
 	AT_TAGS_REGEX,
 	AT_PROJECT_REGEX,
+	AT_ESTIMATE_REGEX,
+	AT_SCHEDULE_REGEX,
+	AT_PRIORITY_REGEX,
 	AT_SYNTAX_REGEX,
 	CHECKBOX_DONE_REGEX,
 	CHECKBOX_UNDONE_REGEX,
@@ -20,6 +23,9 @@ export interface TaskLine {
 	tags: string[];
 	dueRaw: string | null;
 	project: string | null;
+	estimateRaw: string | null;
+	scheduleRaw: string | null;
+	priorityRaw: string[];
 	lineNumber: number;
 	filePath: string;
 }
@@ -59,12 +65,15 @@ export function parseLine(line: string, lineNumber: number, filePath: string): T
 	const atDueRaw = extractInlineField(trimmed, AT_DUE_REGEX);
 	const atProject = extractInlineField(trimmed, AT_PROJECT_REGEX);
 	const atTagsRaw = extractAllAtFields(trimmed, AT_TAGS_REGEX);
+	const estimateRaw = extractInlineField(trimmed, AT_ESTIMATE_REGEX);
+	const scheduleRaw = extractInlineField(trimmed, AT_SCHEDULE_REGEX);
+	const priorityRaw = extractAllAtFields(trimmed, AT_PRIORITY_REGEX);
 
 	// @ syntax takes priority over old syntax
 	const finalDueRaw = atDueRaw ?? dueRaw;
 	const finalProject = atProject ?? project;
 
-	// Merge tags from both syntaxes
+	// Merge tags from both syntaxes (priority is kept separate; folded in at sync time)
 	const oldTags = tagsRaw
 		? tagsRaw
 				.split(/[,|]/)
@@ -79,6 +88,9 @@ export function parseLine(line: string, lineNumber: number, filePath: string): T
 		.replace(TAGS_REGEX, '')
 		.replace(DUE_REGEX, '')
 		.replace(PROJECT_REGEX, '')
+		.replace(AT_ESTIMATE_REGEX, '')
+		.replace(AT_SCHEDULE_REGEX, '')
+		.replace(AT_PRIORITY_REGEX, '')
 		.replace(AT_SYNTAX_REGEX, '')
 		.trim();
 
@@ -91,6 +103,9 @@ export function parseLine(line: string, lineNumber: number, filePath: string): T
 		tags: allTags,
 		dueRaw: finalDueRaw,
 		project: finalProject,
+		estimateRaw,
+		scheduleRaw,
+		priorityRaw,
 		lineNumber,
 		filePath,
 	};
@@ -121,4 +136,34 @@ export function markDone(line: string): string {
 
 export function markUndone(line: string): string {
 	return line.replace(/^- \[x\]/i, '- [ ]');
+}
+
+/**
+ * Update existing @estimate:/@schedule: tokens on a task line to match SP values.
+ * Tokens are only replaced in place; missing tokens are never added and existing
+ * tokens are never removed (to avoid polluting or losing note content).
+ */
+export function applyExtraFieldsToLine(
+	line: string,
+	fields: { timeEstimate?: number | null; plannedAt?: number | null },
+	formatEstimateFn: (ms: number | null | undefined) => string | null,
+	formatScheduleFn: (ms: number | null | undefined) => string | null,
+): string {
+	let result = line;
+
+	if (fields.timeEstimate !== undefined) {
+		const est = formatEstimateFn(fields.timeEstimate);
+		if (est) {
+			result = result.replace(AT_ESTIMATE_REGEX, `@estimate:${est}`);
+		}
+	}
+
+	if (fields.plannedAt !== undefined) {
+		const sched = formatScheduleFn(fields.plannedAt);
+		if (sched) {
+			result = result.replace(AT_SCHEDULE_REGEX, `@schedule:${sched}`);
+		}
+	}
+
+	return result;
 }
