@@ -43,9 +43,3 @@ export interface UpdateTaskParams {
 	dueDay?: string;
 	dueWithTime?: number;
 }
-
-export interface ApiResponse<T> {
-	ok: boolean;
-	data?: T;
-	error?: { code: string; message: string };
-}

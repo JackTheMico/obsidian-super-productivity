@@ -23,7 +23,7 @@ export class SPSuggest extends EditorSuggest<SPSuggestion> {
 	private query = '';
 	private tagsCache: { data: SPTag[]; timestamp: number } | null = null;
 	private projectsCache: { data: SPProject[]; timestamp: number } | null = null;
-	private static readonly CACHE_TTL = 30000;
+	private static readonly CACHE_TTL = 300000;
 
 	constructor(plugin: SuperProductivitySyncPlugin) {
 		super(plugin.app);

@@ -4,10 +4,6 @@
 
 A plugin that bidirectionally syncs Obsidian tasks (checkboxes) with [Super Productivity](https://github.com/johannesjo/super-productivity).
 
-本项目完全由 OpenCode 以及其免费模型设计并实现。
-
-This project is entirely designed and implemented by OpenCode and its free model.
-
 ## 功能 | Features
 
 - **推送 (Obsidian → SP)**：将当前行或全文的 `- [ ]` 待办事项发送到 Super Productivity

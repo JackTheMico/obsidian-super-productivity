@@ -26,7 +26,7 @@ export interface TaskLine {
 
 function extractInlineField(line: string, regex: RegExp): string | null {
 	const match = line.match(regex);
-	return match ? match[1]!.trim() : null;
+	return match ? (match[1]?.trim() ?? null) : null;
 }
 
 function extractAllAtFields(line: string, regex: RegExp): string[] {

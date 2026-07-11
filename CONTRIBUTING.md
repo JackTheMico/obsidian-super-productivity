@@ -33,10 +33,10 @@ By participating, you agree to uphold its standards.
 
 ### Report Bugs / 报告缺陷
 
-Before reporting, check [existing issues](https://github.com/anomalyco/obsidian-super-productivity/issues)
+Before reporting, check [existing issues](https://github.com/JackTheMico/obsidian-super-productivity/issues)
 to avoid duplicates. When filing a bug report, include:
 
-在报告前请先查看[已有 issue](https://github.com/anomalyco/obsidian-super-productivity/issues)
+在报告前请先查看[已有 issue](https://github.com/JackTheMico/obsidian-super-productivity/issues)
 以避免重复。报告缺陷时请包含：
 
 - Plugin version / 插件版本
@@ -82,7 +82,7 @@ Follow the [Pull Request Process](#pull-request-process--pr-流程) below.
 
 ```bash
 # 1. Clone the repository / 克隆仓库
-git clone https://github.com/anomalyco/obsidian-super-productivity.git
+git clone https://github.com/JackTheMico/obsidian-super-productivity.git
 cd obsidian-super-productivity
 
 # 2. Install dependencies / 安装依赖
