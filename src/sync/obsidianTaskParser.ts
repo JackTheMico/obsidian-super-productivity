@@ -145,7 +145,7 @@ export function markUndone(line: string): string {
  */
 export function applyExtraFieldsToLine(
 	line: string,
-	fields: { timeEstimate?: number | null; plannedAt?: number | null },
+	fields: { timeEstimate?: number | null; schedule?: number | null },
 	formatEstimateFn: (ms: number | null | undefined) => string | null,
 	formatScheduleFn: (ms: number | null | undefined) => string | null,
 ): string {
@@ -158,8 +158,8 @@ export function applyExtraFieldsToLine(
 		}
 	}
 
-	if (fields.plannedAt !== undefined) {
-		const sched = formatScheduleFn(fields.plannedAt);
+	if (fields.schedule !== undefined) {
+		const sched = formatScheduleFn(fields.schedule);
 		if (sched) {
 			result = result.replace(AT_SCHEDULE_REGEX, `@schedule:${sched}`);
 		}

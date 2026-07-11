@@ -5,11 +5,6 @@ export interface ParsedDue {
 	dueWithTime?: number;
 }
 
-export interface ParsedExtraFields {
-	timeEstimate?: number;
-	plannedAt?: number | null;
-}
-
 const WEEKDAY_MAP: Record<string, number> = {
 	周日: 0,
 	星期日: 0,
@@ -41,13 +36,6 @@ const WEEKDAY_MAP: Record<string, number> = {
 	sat: 6,
 };
 
-function toIsoDate(d: Date): string {
-	const y = d.getFullYear();
-	const m = String(d.getMonth() + 1).padStart(2, '0');
-	const day = String(d.getDate()).padStart(2, '0');
-	return `${y}-${m}-${day}`;
-}
-
 function resolveRelativeDate(keyword: string, now: Date): Date | null {
 	const lower = keyword.toLowerCase();
 	if (lower === 'today' || lower === '今天') {
@@ -69,34 +57,89 @@ function resolveRelativeDate(keyword: string, now: Date): Date | null {
 	return null;
 }
 
-export function parseDue(raw: string | null): ParsedDue | null {
+export interface ParsedDateTime {
+	day: string;
+	withTime: number | null;
+}
+
+/**
+ * Parse a date (with optional time) into a normalized day string and an
+ * optional Unix-ms timestamp. Supports relative keywords (today/tomorrow/weekday)
+ * and `YYYY-MM-DD` / `YYYY-MM-DDTHH:MM` (or space-separated) forms.
+ */
+export function parseDateTime(raw: string | null): ParsedDateTime | null {
 	if (!raw) return null;
 	const now = new Date();
 	const trimmed = raw.trim();
 
-	const relative = resolveRelativeDate(trimmed, now);
-	if (relative) {
-		return { dueDay: toIsoDate(relative) };
-	}
-
-	const isoDateMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})$/);
-	if (isoDateMatch) {
-		return { dueDay: isoDateMatch[1]! };
-	}
-
-	const dateTimeMatch = trimmed.match(
-		/^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})$/,
-	);
-	if (dateTimeMatch) {
-		const datePart = dateTimeMatch[1]!;
-		const hour = dateTimeMatch[2]!.padStart(2, '0');
-		const minute = dateTimeMatch[3]!;
-		const ms = Date.parse(`${datePart}T${hour}:${minute}:00`);
-		if (!isNaN(ms)) {
-			return { dueWithTime: ms };
+	let date: Date | null = resolveRelativeDate(trimmed, now);
+	if (!date) {
+		const isoDateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+		if (isoDateMatch) {
+			date = new Date(`${isoDateMatch[1]}-${isoDateMatch[2]}-${isoDateMatch[3]}T00:00:00`);
+		} else {
+			const dateTimeMatch = trimmed.match(
+				/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})$/,
+			);
+			if (dateTimeMatch) {
+				const datePart = dateTimeMatch[1]!;
+				const hour = dateTimeMatch[4]!.padStart(2, '0');
+				const minute = dateTimeMatch[5]!.padStart(2, '0');
+				const ms = Date.parse(`${datePart}T${hour}:${minute}:00`);
+				date = isNaN(ms) ? null : new Date(ms);
+			}
 		}
 	}
+	if (!date) return null;
 
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	const dayStr = `${year}-${month}-${day}`;
+	const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
+	const withTime = hasTime
+		? Date.parse(
+				`${dayStr}T${String(date.getHours()).padStart(2, '0')}:${String(
+					date.getMinutes(),
+				).padStart(2, '0')}:00`,
+			)
+		: null;
+	return { day: dayStr, withTime: isNaN(withTime as number) ? null : withTime };
+}
+
+export function parseDue(raw: string | null): ParsedDue | null {
+	const parsed = parseDateTime(raw);
+	if (!parsed) return null;
+	return parsed.withTime != null
+		? { dueWithTime: parsed.withTime }
+		: { dueDay: parsed.day };
+}
+
+export function parseDeadline(
+	raw: string | null,
+): { deadlineDay?: string; deadlineWithTime?: number } | null {
+	const parsed = parseDateTime(raw);
+	if (!parsed) return null;
+	return parsed.withTime != null
+		? { deadlineWithTime: parsed.withTime }
+		: { deadlineDay: parsed.day };
+}
+
+/**
+ * Normalize a SP date field (`dueDay`/`dueWithTime` or `deadlineDay`/`deadlineWithTime`)
+ * to a Unix-ms timestamp (or null). Used to compare note vs SP values for writeback.
+ */
+export function scheduleOrDeadlineToMs(d: {
+	dueDay?: string | null;
+	dueWithTime?: number | null;
+	deadlineDay?: string | null;
+	deadlineWithTime?: number | null;
+} | null | undefined): number | null {
+	if (!d) return null;
+	if (d.dueWithTime != null) return d.dueWithTime;
+	if (d.deadlineWithTime != null) return d.deadlineWithTime;
+	if (d.dueDay) return Date.parse(`${d.dueDay}T00:00:00`);
+	if (d.deadlineDay) return Date.parse(`${d.deadlineDay}T00:00:00`);
 	return null;
 }
 
@@ -116,24 +159,6 @@ export function formatEstimate(ms: number | null | undefined): string | null {
 	const hours = Math.floor(totalMinutes / 60);
 	const minutes = totalMinutes % 60;
 	return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
-export function parseSchedule(raw: string | null): number | null {
-	if (!raw) return null;
-	const m = raw.trim().match(
-		/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{1,2}):(\d{2}))?$/,
-	);
-	if (!m) return null;
-	const y = Number(m[1]);
-	const mo = Number(m[2]);
-	const d = Number(m[3]);
-	const h = m[4] ? Number(m[4]) : 0;
-	const mi = m[5] ? Number(m[5]) : 0;
-	if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) {
-		return null;
-	}
-	const ms = new Date(y, mo - 1, d, h, mi).getTime();
-	return isNaN(ms) ? null : ms;
 }
 
 export function formatSchedule(ms: number | null | undefined): string | null {
