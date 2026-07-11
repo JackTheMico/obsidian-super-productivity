@@ -1,0 +1,142 @@
+import type { SuperProductivityApi } from '../api/superProductivityApi';
+
+export interface ParsedDue {
+	dueDay?: string;
+	dueWithTime?: number;
+}
+
+const WEEKDAY_MAP: Record<string, number> = {
+	周日: 0,
+	星期日: 0,
+	sunday: 0,
+	sun: 0,
+	周一: 1,
+	星期一: 1,
+	monday: 1,
+	mon: 1,
+	周二: 2,
+	星期二: 2,
+	tuesday: 2,
+	tue: 2,
+	周三: 3,
+	星期三: 3,
+	wednesday: 3,
+	wed: 3,
+	周四: 4,
+	星期四: 4,
+	thursday: 4,
+	thu: 4,
+	周五: 5,
+	星期五: 5,
+	friday: 5,
+	fri: 5,
+	周六: 6,
+	星期六: 6,
+	saturday: 6,
+	sat: 6,
+};
+
+function toIsoDate(d: Date): string {
+	const y = d.getFullYear();
+	const m = String(d.getMonth() + 1).padStart(2, '0');
+	const day = String(d.getDate()).padStart(2, '0');
+	return `${y}-${m}-${day}`;
+}
+
+function resolveRelativeDate(keyword: string, now: Date): Date | null {
+	const lower = keyword.toLowerCase();
+	if (lower === 'today' || lower === '今天') {
+		return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	}
+	if (lower === 'tomorrow' || lower === '明天') {
+		return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+	}
+	if (lower in WEEKDAY_MAP) {
+		const target = WEEKDAY_MAP[lower]!;
+		const diff = (target - now.getDay() + 7) % 7;
+		const days = diff === 0 ? 7 : diff;
+		return new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate() + days,
+		);
+	}
+	return null;
+}
+
+export function parseDue(raw: string | null): ParsedDue | null {
+	if (!raw) return null;
+	const now = new Date();
+	const trimmed = raw.trim();
+
+	const relative = resolveRelativeDate(trimmed, now);
+	if (relative) {
+		return { dueDay: toIsoDate(relative) };
+	}
+
+	const isoDateMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})$/);
+	if (isoDateMatch) {
+		return { dueDay: isoDateMatch[1]! };
+	}
+
+	const dateTimeMatch = trimmed.match(
+		/^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})$/,
+	);
+	if (dateTimeMatch) {
+		const datePart = dateTimeMatch[1]!;
+		const hour = dateTimeMatch[2]!.padStart(2, '0');
+		const minute = dateTimeMatch[3]!;
+		const ms = Date.parse(`${datePart}T${hour}:${minute}:00`);
+		if (!isNaN(ms)) {
+			return { dueWithTime: ms };
+		}
+	}
+
+	return null;
+}
+
+export interface ResolveResult {
+	ids: string[];
+	missing: string[];
+}
+
+export async function resolveTagIds(
+	api: SuperProductivityApi,
+	tagNames: string[],
+): Promise<ResolveResult> {
+	if (tagNames.length === 0) return { ids: [], missing: [] };
+	const tags = await api.getTags();
+	const byTitle = new Map<string, string>();
+	for (const t of tags) {
+		byTitle.set(t.title.trim().toLowerCase(), t.id);
+	}
+	const ids: string[] = [];
+	const missing: string[] = [];
+	for (const name of tagNames) {
+		const id = byTitle.get(name.trim().toLowerCase());
+		if (id) {
+			ids.push(id);
+		} else {
+			missing.push(name);
+		}
+	}
+	return { ids, missing };
+}
+
+export async function resolveProjectId(
+	api: SuperProductivityApi,
+	projectName: string | null,
+	defaultProjectId: string,
+): Promise<{ id: string; resolved: boolean }> {
+	if (!projectName) {
+		return { id: defaultProjectId, resolved: false };
+	}
+	const projects = await api.getProjects();
+	const target = projectName.trim().toLowerCase();
+	for (const p of projects) {
+		if (p.title.trim().toLowerCase() === target) {
+			return { id: p.id, resolved: true };
+		}
+	}
+	return { id: defaultProjectId, resolved: false };
+}

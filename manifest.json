@@ -1,11 +1,9 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "super-productivity-sync",
+	"name": "Super Productivity Sync",
 	"version": "1.0.0",
-	"minAppVersion": "1.0.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
-	"isDesktopOnly": false
+	"minAppVersion": "1.2.3",
+	"description": "Bidirectional task sync between Obsidian and Super Productivity",
+	"author": "JackTheMico",
+	"isDesktopOnly": true
 }
