@@ -1,8 +1,7 @@
 import type { SuperProductivityApi } from '../api/superProductivityApi';
 
 export interface ParsedDue {
-	dueDay?: string;
-	dueWithTime?: number;
+	dueWithTime: number;
 }
 
 const WEEKDAY_MAP: Record<string, number> = {
@@ -110,9 +109,22 @@ export function parseDateTime(raw: string | null): ParsedDateTime | null {
 export function parseDue(raw: string | null): ParsedDue | null {
 	const parsed = parseDateTime(raw);
 	if (!parsed) return null;
-	return parsed.withTime != null
-		? { dueWithTime: parsed.withTime }
-		: { dueDay: parsed.day };
+	const ms = parsed.withTime ?? Date.parse(`${parsed.day}T00:00:00`);
+	return isNaN(ms) ? null : { dueWithTime: ms };
+}
+
+/**
+ * Parse a `@schedule:` value into SP's `plannedAt` field (Unix-ms timestamp).
+ * Both all-day (`2026-07-15`) and timed (`2026-07-15T15:30`) forms are accepted;
+ * an all-day value resolves to local midnight.
+ */
+export function parseSchedule(
+	raw: string | null,
+): { plannedAt: number } | null {
+	const parsed = parseDateTime(raw);
+	if (!parsed) return null;
+	const ms = parsed.withTime ?? Date.parse(`${parsed.day}T00:00:00`);
+	return { plannedAt: ms };
 }
 
 export function parseDeadline(
@@ -130,12 +142,14 @@ export function parseDeadline(
  * to a Unix-ms timestamp (or null). Used to compare note vs SP values for writeback.
  */
 export function scheduleOrDeadlineToMs(d: {
+	plannedAt?: number | null;
 	dueDay?: string | null;
 	dueWithTime?: number | null;
 	deadlineDay?: string | null;
 	deadlineWithTime?: number | null;
 } | null | undefined): number | null {
 	if (!d) return null;
+	if (d.plannedAt != null) return d.plannedAt;
 	if (d.dueWithTime != null) return d.dueWithTime;
 	if (d.deadlineWithTime != null) return d.deadlineWithTime;
 	if (d.dueDay) return Date.parse(`${d.dueDay}T00:00:00`);

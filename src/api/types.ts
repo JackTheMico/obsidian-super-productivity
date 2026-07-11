@@ -9,6 +9,7 @@ export interface SPTask {
 	subTaskIds?: string[];
 	timeEstimate?: number;
 	timeSpent?: number;
+	plannedAt?: number | null;
 	dueDay?: string | null;
 	dueWithTime?: number | null;
 	deadlineDay?: string | null;
@@ -34,6 +35,7 @@ export interface CreateTaskParams {
 	tagIds?: string[];
 	parentId?: string;
 	timeEstimate?: number;
+	plannedAt?: number;
 	dueDay?: string;
 	dueWithTime?: number;
 	deadlineDay?: string;
@@ -47,6 +49,7 @@ export interface UpdateTaskParams {
 	projectId?: string;
 	tagIds?: string[];
 	timeEstimate?: number;
+	plannedAt?: number;
 	dueDay?: string;
 	dueWithTime?: number;
 	deadlineDay?: string;
