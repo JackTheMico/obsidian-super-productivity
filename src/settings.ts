@@ -42,8 +42,8 @@ export class SyncSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('SP API URL')
-			.setDesc('Super Productivity REST API 地址（默认端口 3876）')
+			.setName('Sp API URL')
+			.setDesc('Super productivity rest API 地址（默认端口 3876）')
 			.addText((text) =>
 				text
 					.setPlaceholder('http://127.0.0.1:3876')
@@ -56,7 +56,7 @@ export class SyncSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Default Project ID')
+			.setName('Default project ID')
 			.setDesc('发送任务时的默认项目 ID（留空为收件箱）')
 			.addText((text) =>
 				text
@@ -69,7 +69,7 @@ export class SyncSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Polling Interval')
+			.setName('Polling interval')
 			.setDesc('状态同步轮询间隔（秒）')
 			.addText((text) =>
 				text
@@ -86,7 +86,7 @@ export class SyncSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Enable Polling')
+			.setName('Enable polling')
 			.setDesc('启动定时轮询，检测状态变更')
 			.addToggle((toggle) =>
 				toggle
@@ -99,8 +99,8 @@ export class SyncSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Auto-create Deep Link')
-			.setDesc('在 SP 任务备注中嵌入 Obsidian 链接，点击跳转到原笔记')
+			.setName('Auto-create deep link')
+			.setDesc('在 sp 任务备注中嵌入 Obsidian 链接，点击跳转到原笔记')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.autoCreateDeepLink)
@@ -111,8 +111,8 @@ export class SyncSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Subtask Sync')
-			.setDesc('将缩进层级映射为 SP 子任务（缩进 2 空格为一级子任务，更深层级拍平）')
+			.setName('Subtask sync')
+			.setDesc('将缩进层级映射为 sp 子任务（缩进 2 空格为一级子任务，更深层级拍平）')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.enableSubtaskSync)
@@ -123,8 +123,8 @@ export class SyncSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Sync Tags')
-			.setDesc('将任务行中的 [tags:: a, b] 同步为 SP 标签（需 SP 中已存在同名标签）')
+			.setName('Sync tags')
+			.setDesc('将任务行中的 [tags:: a, b] 或 @tag:a 同步为 sp 标签（需 sp 中已存在同名标签；输入 @ 可获取智能提示）')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.syncTags)
@@ -135,8 +135,8 @@ export class SyncSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Sync Due Date')
-			.setDesc('将任务行中的 [due:: 2026-07-12] 或 [due:: 2026-07-12 15:00] 同步为 SP 截止时间')
+			.setName('Sync due date')
+			.setDesc('将任务行中的 [due:: 2026-07-12] 或 [due:: 2026-07-12 15:00] 同步为 sp 截止时间')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.syncDueDate)
@@ -148,7 +148,7 @@ export class SyncSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Auto-sync on idle')
-			.setDesc('停止编辑当前文件后，自动将未同步的任务推送到 SP')
+			.setDesc('停止编辑当前文件后，自动将未同步的任务推送到 sp')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.autoSyncOnIdle)
@@ -175,37 +175,37 @@ export class SyncSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Test Connection')
-			.setDesc('测试与 Super Productivity 的 API 连接')
+			.setName('Test connection')
+			.setDesc('测试与 super productivity 的 API 连接')
 			.addButton((btn) =>
 				btn
-					.setButtonText('Test Connection')
+					.setButtonText('Test connection')
 					.onClick(async () => {
 						btn.setDisabled(true);
 						btn.setButtonText('Testing...');
 						const ok = await this.plugin.api?.healthCheck();
 						btn.setDisabled(false);
-						btn.setButtonText('Test Connection');
+						btn.setButtonText('Test connection');
 						if (ok) {
 							new Notice('Connection successful!');
 						} else {
-							new Notice('Connection failed. Is SP running?');
+							new Notice('Connection failed. Is sp running?');
 						}
 					}),
 			);
 
 		new Setting(containerEl)
-			.setName('Force Sync')
+			.setName('Force sync')
 			.setDesc('立即执行一次完整同步')
 			.addButton((btn) =>
 				btn
-					.setButtonText('Sync Now')
+					.setButtonText('Sync now')
 					.onClick(async () => {
 						btn.setDisabled(true);
 						btn.setButtonText('Syncing...');
 						await this.plugin.syncService?.pollOnce();
 						btn.setDisabled(false);
-						btn.setButtonText('Sync Now');
+						btn.setButtonText('Sync now');
 						new Notice('Sync completed');
 					}),
 			);

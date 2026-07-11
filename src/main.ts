@@ -14,6 +14,7 @@ import {
 } from './settings';
 import { SuperProductivityApi } from './api/superProductivityApi';
 import { TaskSyncService } from './sync/taskSyncService';
+import { SPSuggest } from './ui/spSuggest';
 
 export default class SuperProductivitySyncPlugin extends Plugin {
 	settings!: SuperProductivitySettings;
@@ -31,7 +32,7 @@ export default class SuperProductivitySyncPlugin extends Plugin {
 
 		const ribbonIcon = this.addRibbonIcon(
 			'list-checks',
-			'Sync to Super Productivity',
+			'Sync to super productivity',
 			async () => {
 				await this.syncService.pollOnce();
 				new Notice('Sync completed');
@@ -40,9 +41,10 @@ export default class SuperProductivitySyncPlugin extends Plugin {
 		ribbonIcon.addClass('sp-sync-ribbon');
 
 		const statusBarEl = this.addStatusBarItem();
-		statusBarEl.setText('SP Sync: idle');
+		statusBarEl.setText('Sp sync: idle');
 		statusBarEl.addClass('sp-sync-status');
 
+		this.registerEditorSuggest(new SPSuggest(this));
 		this.restartPolling();
 		this.registerAutoSync();
 	}
@@ -121,7 +123,7 @@ export default class SuperProductivitySyncPlugin extends Plugin {
 	private registerCommands() {
 		this.addCommand({
 			id: 'send-current-task',
-			name: 'Send current task to Super Productivity',
+			name: 'Send current task to super productivity',
 			editorCallback: (
 				editor: Editor,
 				ctx: MarkdownView | MarkdownFileInfo,
@@ -137,7 +139,7 @@ export default class SuperProductivitySyncPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'send-all-tasks',
-			name: 'Send all tasks to Super Productivity',
+			name: 'Send all tasks to super productivity',
 			checkCallback: (checking: boolean) => {
 				const file =
 					this.app.workspace.getActiveFile();
@@ -160,16 +162,16 @@ export default class SuperProductivitySyncPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'test-sp-connection',
-			name: 'Test Super Productivity connection',
+			name: 'Test super productivity connection',
 			callback: async () => {
 				const ok = await this.api.healthCheck();
 				if (ok) {
 					new Notice(
-						'SP connection successful!',
+						'Sp connection successful!',
 					);
 				} else {
 					new Notice(
-						'SP connection failed. Is SP running with API enabled?',
+						'Sp connection failed. Is sp running with API enabled?',
 					);
 				}
 			},

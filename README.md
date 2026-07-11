@@ -147,6 +147,13 @@ npm run build  # 生产构建 / Production build
 npm run lint   # ESLint 检查 / ESLint check
 ```
 
+### 贡献 | Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines on bug reports,
+feature requests, development setup, coding conventions, and pull request process.
+
+详细的缺陷报告、功能请求、本地开发、代码规范与 PR 流程请参阅 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+
 ## 安装 | Installation
 
 1. 在 Obsidian 中启用插件

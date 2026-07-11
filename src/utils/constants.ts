@@ -7,3 +7,8 @@ export const CHECKBOX_REGEX = /^- \[[x ]\] /i;
 export const TAGS_REGEX = /\[tags::\s*([^\]]+)\]/i;
 export const DUE_REGEX = /\[due::\s*([^\]]+)\]/i;
 export const PROJECT_REGEX = /\[project::\s*([^\]]+)\]/i;
+
+export const AT_DUE_REGEX = /@due:([^\s]+)/i;
+export const AT_TAGS_REGEX = /@tag:([^\s]+)/gi;
+export const AT_PROJECT_REGEX = /@project:([^\s]+)/i;
+export const AT_SYNTAX_REGEX = /@(?:due|tag|project):[^\s]+/gi;

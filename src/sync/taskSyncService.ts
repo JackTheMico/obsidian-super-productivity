@@ -98,7 +98,7 @@ export class TaskSyncService {
 			editor.setLine(cursor.line, newLine);
 
 			this.settings.taskStateCache[spTask.id] = false;
-			new Notice('Task sent to Super Productivity');
+			new Notice('Task sent to super productivity');
 		} catch (e) {
 			new Notice(`Failed to send task: ${(e as Error).message}`);
 		} finally {
