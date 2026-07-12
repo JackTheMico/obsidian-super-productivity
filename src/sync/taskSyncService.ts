@@ -99,7 +99,6 @@ export class TaskSyncService {
 					dueWithTime: schedule.dueWithTime,
 					timeEstimate,
 				});
-				new Notice(`[sp-sync] 更新任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`);
 			} else {
 				spTask = await this.api.createTask({
 					title: task.title,
@@ -110,7 +109,6 @@ export class TaskSyncService {
 					dueWithTime: schedule.dueWithTime,
 					timeEstimate,
 				});
-				new Notice(`[sp-sync] 创建任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`);
 
 				const newLine = addSpId(editor.getLine(cursor.line), spTask.id);
 				editor.setLine(cursor.line, newLine);
@@ -166,10 +164,6 @@ export class TaskSyncService {
 						timeEstimate: timeEstimates[task.lineNumber],
 					});
 
-					new Notice(
-						`[sp-sync] 创建任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`,
-					);
-
 					spIds.push({ lineNumber: task.lineNumber, spId: spTask.id });
 					this.settings.taskStateCache[spTask.id] = false;
 					createdCount++;
@@ -196,10 +190,6 @@ export class TaskSyncService {
 						dueWithTime: schedules[task.lineNumber]?.dueWithTime,
 						timeEstimate: timeEstimates[task.lineNumber],
 					});
-
-					new Notice(
-						`[sp-sync] 更新任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`,
-					);
 
 					this.settings.taskStateCache[spTask.id] = false;
 					updatedCount++;
@@ -555,9 +545,6 @@ export class TaskSyncService {
 					if (noteSchedule) {
 						patch.dueWithTime = noteSchedule.dueWithTime;
 					}
-					new Notice(
-						`[sp-sync] 更新 ${task.spId} | noteSched=${noteScheduleMs} spSched=${spScheduleMs}`,
-					);
 					await this.api.updateTask(task.spId, patch);
 				} catch (e) {
 					console.error(
