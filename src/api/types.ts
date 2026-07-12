@@ -38,8 +38,6 @@ export interface CreateTaskParams {
 	plannedAt?: number;
 	dueDay?: string;
 	dueWithTime?: number;
-	deadlineDay?: string;
-	deadlineWithTime?: number;
 }
 
 export interface UpdateTaskParams {
@@ -52,6 +50,4 @@ export interface UpdateTaskParams {
 	plannedAt?: number;
 	dueDay?: string;
 	dueWithTime?: number;
-	deadlineDay?: string;
-	deadlineWithTime?: number;
 }

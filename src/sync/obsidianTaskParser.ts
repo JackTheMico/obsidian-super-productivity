@@ -148,7 +148,6 @@ export function applyExtraFieldsToLine(
 	fields: {
 		timeEstimate?: number | null;
 		schedule?: number | null;
-		due?: number | null;
 	},
 	formatEstimateFn: (ms: number | null | undefined) => string | null,
 	formatScheduleFn: (ms: number | null | undefined) => string | null,
@@ -166,13 +165,6 @@ export function applyExtraFieldsToLine(
 		const sched = formatScheduleFn(fields.schedule);
 		if (sched) {
 			result = result.replace(AT_SCHEDULE_REGEX, `@schedule:${sched}`);
-		}
-	}
-
-	if (fields.due !== undefined) {
-		const due = formatScheduleFn(fields.due);
-		if (due) {
-			result = result.replace(AT_DUE_REGEX, `@due:${due}`);
 		}
 	}
 

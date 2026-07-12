@@ -59,8 +59,8 @@ Because Super Productivity has no Webhook mechanism, the plugin uses **Polling**
 Use dataview-style inline fields anywhere in the checkbox line. They are automatically stripped on send and never enter the SP task body:
 
 ```markdown
-- [ ] 写周报 [tags:: work, report] [due:: 2026-07-12] [project:: 工作]
-- [ ] 下午三点开会 [due:: 2026-07-10 15:00] [project:: 会议]
+- [ ] 写周报 [tags:: work, report] [project:: 工作]
+- [ ] 下午三点开会 [project:: 会议]
 - [ ] 明天要交 [due:: 明天]
 - [ ] 读书笔记 [tags:: reading]            # 多个标签用逗号或 | 分隔
     - [ ] 整理大纲 [project:: 工作]         # 缩进表示 SP 子任务
@@ -71,15 +71,15 @@ Use dataview-style inline fields anywhere in the checkbox line. They are automat
 After a successful push, the plugin appends the link ID to the line end (used for polling write-back):
 
 ```markdown
-- [ ] 写周报 [tags:: work, report] [due:: 2026-07-12] [project:: 工作] [sp_id:: abc123]
+- [ ] 写周报 [tags:: work, report] [project:: 工作] [sp_id:: abc123]
 ```
 
 - `tags`：逗号或 `|` 分隔，按标题匹配 SP 中**已存在**的标签；未命中的标签会被跳过并提示
   `tags`: Comma- or `|`-separated; matched by title against **existing** SP tags. Unmatched tags are skipped with a notice.
-- `due`：支持绝对日期 `YYYY-MM-DD`（全天）、`YYYY-MM-DD HH:MM` 或 `YYYY-MM-DDTHH:MM`（带时间），也支持相对写法 `今天`/`明天`/`周一`..`周日`（英文 `today`/`tomorrow`/星期名亦可）
-  `due`: Absolute date `YYYY-MM-DD` (all-day), `YYYY-MM-DD HH:MM` or `YYYY-MM-DDTHH:MM` (with time), and relative `今天`/`明天`/`周一`..`周日` (also `today`/`tomorrow`/weekday names).
 - `project`：按标题匹配 SP 中**已存在**的项目；未命中则回退到「默认项目 ID」设置
   `project`: Matched by title against **existing** SP projects; falls back to the "Default project ID" setting when unmatched.
+- `due`：⚠️ **暂不支持**。Super Productivity Local REST API 的 `plannedAt` 字段不生效，`dueWithTime` 实际被用作排期/计划日期。目前仅支持 `@schedule:` 语法设置计划日期（映射到 `dueWithTime`）。
+  `due`: ⚠️ **Not supported yet**. Super Productivity Local REST API's `plannedAt` field is non-functional; `dueWithTime` is actually used for scheduling/planned date. Currently only `@schedule:` syntax is supported for setting planned date (maps to `dueWithTime`).
 - 停止编辑当前文件数秒（防抖）后，未同步的任务会自动推送到 SP（可在设置中关闭）
   After a few seconds of idle editing (debounce), unsynced tasks are pushed to SP automatically (can be disabled in settings).
 
@@ -89,6 +89,22 @@ After a successful push, the plugin appends the link ID to the line end (used fo
 仅 **Obsidian → SP** 方向同步这些字段（推送任务时写入）。
 
 These fields sync in the **Obsidian → SP** direction only (written when pushing tasks).
+
+## 已知限制 | Known Limitations
+
+- **`@due` / `[due:: ...]` 暂不支持**：Super Productivity Local REST API (v3.01) 的 `plannedAt` 字段在创建/更新任务时不生效。`dueWithTime` 字段虽在 API 文档中标注为 "due date with time"，但实际在 SP 客户端中表现为**排期/计划日期**（出现在 Today View、Schedule View、Planner View）。因此当前插件将 `@schedule:` 映射到 `dueWithTime`，作为计划/排期日期使用。
+- **`@schedule:` 语法映射到 `dueWithTime`**：这是目前唯一可用的设置任务计划日期的方式。若 SP 未来修复 `plannedAt`，将迁移回正确字段。
+- 相关 Issue：[#2](https://github.com/JackTheMico/obsidian-super-productivity/issues/2) - Local REST API plannedAt 字段无效，dueWithTime 实际为排期日期
+
+---
+
+These fields sync in the **Obsidian → SP** direction only (written when pushing tasks).
+
+## Known Limitations
+
+- **`@due` / `[due:: ...]` not supported**: Super Productivity Local REST API (v3.01) `plannedAt` field doesn't work when creating/updating tasks. The `dueWithTime` field, though documented as "due date with time", actually behaves as the **scheduling/planned date** in SP client (appears in Today View, Schedule View, Planner View). Currently the plugin maps `@schedule:` to `dueWithTime` for planned date.
+- **`@schedule:` syntax maps to `dueWithTime`**: This is the only working way to set a task's planned date. If SP fixes `plannedAt` in the future, migration will happen.
+- Related Issue: [#2](https://github.com/JackTheMico/obsidian-super-productivity/issues/2) - Local REST API plannedAt field not working, dueWithTime actually used for scheduling
 
 ## 设置 | Settings
 

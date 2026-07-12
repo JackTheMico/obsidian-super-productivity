@@ -1,7 +1,8 @@
 import type { SuperProductivityApi } from '../api/superProductivityApi';
 
 export interface ParsedDue {
-	dueWithTime: number;
+	dueDay?: string;
+	dueWithTime?: number;
 }
 
 const WEEKDAY_MAP: Record<string, number> = {
@@ -81,7 +82,7 @@ export function parseDateTime(raw: string | null): ParsedDateTime | null {
 				/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})$/,
 			);
 			if (dateTimeMatch) {
-				const datePart = dateTimeMatch[1]!;
+				const datePart = `${dateTimeMatch[1]}-${dateTimeMatch[2]}-${dateTimeMatch[3]}`;
 				const hour = dateTimeMatch[4]!.padStart(2, '0');
 				const minute = dateTimeMatch[5]!.padStart(2, '0');
 				const ms = Date.parse(`${datePart}T${hour}:${minute}:00`);
@@ -109,32 +110,27 @@ export function parseDateTime(raw: string | null): ParsedDateTime | null {
 export function parseDue(raw: string | null): ParsedDue | null {
 	const parsed = parseDateTime(raw);
 	if (!parsed) return null;
-	const ms = parsed.withTime ?? Date.parse(`${parsed.day}T00:00:00`);
-	return isNaN(ms) ? null : { dueWithTime: ms };
+	if (parsed.withTime != null) {
+		return { dueDay: parsed.day, dueWithTime: parsed.withTime };
+	}
+	const ms = Date.parse(`${parsed.day}T00:00:00`);
+	if (isNaN(ms)) return null;
+	return { dueDay: parsed.day, dueWithTime: ms };
 }
 
 /**
- * Parse a `@schedule:` value into SP's `plannedAt` field (Unix-ms timestamp).
+ * Parse a `@schedule:` value into SP's `dueWithTime` field (Unix-ms timestamp),
+ * which drives Scheduling in SP (Today View, Schedule View, Planner View).
  * Both all-day (`2026-07-15`) and timed (`2026-07-15T15:30`) forms are accepted;
  * an all-day value resolves to local midnight.
  */
 export function parseSchedule(
 	raw: string | null,
-): { plannedAt: number } | null {
+): { dueWithTime: number } | null {
 	const parsed = parseDateTime(raw);
 	if (!parsed) return null;
 	const ms = parsed.withTime ?? Date.parse(`${parsed.day}T00:00:00`);
-	return { plannedAt: ms };
-}
-
-export function parseDeadline(
-	raw: string | null,
-): { deadlineDay?: string; deadlineWithTime?: number } | null {
-	const parsed = parseDateTime(raw);
-	if (!parsed) return null;
-	return parsed.withTime != null
-		? { deadlineWithTime: parsed.withTime }
-		: { deadlineDay: parsed.day };
+	return { dueWithTime: ms };
 }
 
 /**

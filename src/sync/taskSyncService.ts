@@ -12,12 +12,10 @@ import {
 import type { TaskLine } from './obsidianTaskParser';
 import { createDeepLink } from '../utils/deepLink';
 import {
-	parseDue,
 	parseSchedule,
 	parseEstimate,
 	formatEstimate,
 	formatSchedule,
-	scheduleOrDeadlineToMs,
 	resolveTagIds,
 	resolveProjectId,
 } from '../utils/taskFields';
@@ -92,7 +90,7 @@ export class TaskSyncService {
 				? createDeepLink(this.app, file, task.lineNumber)
 				: undefined;
 
-			const { tagIds, projectId, schedule, due, timeEstimate } =
+			const { tagIds, projectId, schedule, timeEstimate } =
 				await this.resolveTaskFields(task);
 
 			const spTask = await this.api.createTask({
@@ -101,13 +99,12 @@ export class TaskSyncService {
 				projectId: projectId || undefined,
 				parentId: parentSpId,
 				tagIds: tagIds.length ? tagIds : undefined,
-				plannedAt: schedule.plannedAt,
-				dueWithTime: due.dueWithTime,
+				dueWithTime: schedule.dueWithTime,
 				timeEstimate,
 			});
 
 			new Notice(
-				`[sp-sync] 创建任务 ${spTask.id} | plannedAt=${spTask.plannedAt} dueWithTime=${spTask.dueWithTime} dueDay=${spTask.dueDay}`,
+				`[sp-sync] 创建任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`,
 			);
 
 			const newLine = addSpId(editor.getLine(cursor.line), spTask.id);
@@ -132,8 +129,8 @@ export class TaskSyncService {
 			return;
 		}
 
-		try {
-			const { tagIds, projectIds, schedules, dues, timeEstimates } =
+try {
+			const { tagIds, projectIds, schedules, timeEstimates } =
 				await this.resolveTaskFieldsBulk(activeTasks);
 
 			const spIds: { lineNumber: number; spId: string }[] = [];
@@ -154,13 +151,12 @@ export class TaskSyncService {
 						undefined,
 					parentId: parentSpId,
 					tagIds: task.tags.length ? tagIds[task.lineNumber] : undefined,
-					plannedAt: schedules[task.lineNumber]?.plannedAt,
-					dueWithTime: dues[task.lineNumber]?.dueWithTime,
+					dueWithTime: schedules[task.lineNumber]?.dueWithTime,
 					timeEstimate: timeEstimates[task.lineNumber],
 				});
 
 			new Notice(
-				`[sp-sync] 创建任务 ${spTask.id} | plannedAt=${spTask.plannedAt} dueWithTime=${spTask.dueWithTime} dueDay=${spTask.dueDay}`,
+				`[sp-sync] 创建任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`,
 			);
 
 			spIds.push({ lineNumber: task.lineNumber, spId: spTask.id });
@@ -185,8 +181,7 @@ export class TaskSyncService {
 	private async resolveTaskFields(task: TaskLine): Promise<{
 		tagIds: string[];
 		projectId: string;
-		schedule: { plannedAt?: number };
-		due: { dueWithTime?: number };
+		schedule: { dueWithTime?: number };
 		timeEstimate?: number;
 	}> {
 		const allTagNames = [...task.tags];
@@ -220,23 +215,13 @@ export class TaskSyncService {
 			}
 		}
 
-		let schedule: { plannedAt?: number } = {};
+		let schedule: { dueWithTime?: number } = {};
 		if (this.settings.syncExtraFields) {
 			const sched = parseSchedule(task.scheduleRaw);
 			if (sched === null && task.scheduleRaw) {
 				new Notice(`Invalid schedule: ${task.scheduleRaw}`);
 			} else {
 				schedule = sched ?? {};
-			}
-		}
-
-		let due: { dueWithTime?: number } = {};
-		if (this.settings.syncDueDate) {
-			const parsed = parseDue(task.dueRaw);
-			if (parsed) {
-				due = parsed;
-			} else if (task.dueRaw) {
-				new Notice(`Invalid due date: ${task.dueRaw}`);
 			}
 		}
 
@@ -250,23 +235,18 @@ export class TaskSyncService {
 			}
 		}
 
-		return { tagIds, projectId, schedule, due, timeEstimate };
+		return { tagIds, projectId, schedule, timeEstimate };
 	}
 
 	private async resolveTaskFieldsBulk(tasks: TaskLine[]): Promise<{
 		tagIds: Record<number, string[]>;
 		projectIds: Record<number, string | undefined>;
-		schedules: Record<number, { plannedAt?: number }>;
-		dues: Record<number, { dueWithTime?: number }>;
+		schedules: Record<number, { dueWithTime?: number }>;
 		timeEstimates: Record<number, number | undefined>;
 	}> {
 		const tagIds: Record<number, string[]> = {};
 		const projectIds: Record<number, string | undefined> = {};
-		const schedules: Record<number, { plannedAt?: number }> = {};
-		const dues: Record<
-			number,
-			{ dueWithTime?: number }
-		> = {};
+		const schedules: Record<number, { dueWithTime?: number }> = {};
 		const timeEstimates: Record<number, number | undefined> = {};
 
 		const allTagNames = new Set<string>();
@@ -279,15 +259,6 @@ export class TaskSyncService {
 				}
 			}
 			if (task.project) projectNames.add(task.project);
-			if (this.settings.syncDueDate) {
-				const parsed = parseDue(task.dueRaw);
-				dues[task.lineNumber] = parsed ?? {};
-				if (!parsed && task.dueRaw) {
-					new Notice(`Invalid due date: ${task.dueRaw}`);
-				}
-			} else {
-				dues[task.lineNumber] = {};
-			}
 			if (this.settings.syncExtraFields) {
 				const est = parseEstimate(task.estimateRaw);
 				if (est === null && task.estimateRaw) {
@@ -351,7 +322,7 @@ export class TaskSyncService {
 				: undefined;
 		}
 
-		return { tagIds, projectIds, schedules, dues, timeEstimates };
+		return { tagIds, projectIds, schedules, timeEstimates };
 	}
 
 	private findParentSpId(
@@ -441,27 +412,19 @@ export class TaskSyncService {
 			let updatedLine = lines[taskLine.lineNumber]!;
 			updatedLine = markDone(updatedLine);
 
-			if (this.settings.syncExtraFields || this.settings.syncDueDate) {
+			if (this.settings.syncExtraFields) {
 				const hasEstimateToken = taskLine.estimateRaw != null;
 				const hasScheduleToken = taskLine.scheduleRaw != null;
-				const hasDueToken = taskLine.dueRaw != null;
-				if (hasEstimateToken || hasScheduleToken || hasDueToken) {
+				if (hasEstimateToken || hasScheduleToken) {
 					const noteEstimate = parseEstimate(taskLine.estimateRaw);
 					const noteSchedule = parseSchedule(taskLine.scheduleRaw);
-					const noteDue = parseDue(taskLine.dueRaw);
 					const spEstimate = spTask.timeEstimate ?? undefined;
-					const spScheduleMs = spTask.plannedAt ?? null;
-					const spDueMs = scheduleOrDeadlineToMs({
-						dueWithTime: spTask.dueWithTime,
-						dueDay: spTask.dueDay,
-					});
-					const noteScheduleMs = noteSchedule?.plannedAt ?? null;
-					const noteDueMs = scheduleOrDeadlineToMs(noteDue);
+					const spScheduleMs = spTask.dueWithTime ?? null;
+					const noteScheduleMs = noteSchedule?.dueWithTime ?? null;
 
 					const fields: {
 						timeEstimate?: number | null;
 						schedule?: number | null;
-						due?: number | null;
 					} = {};
 					if (hasEstimateToken && noteEstimate !== spEstimate) {
 						fields.timeEstimate = spEstimate;
@@ -469,14 +432,10 @@ export class TaskSyncService {
 					if (hasScheduleToken && noteScheduleMs !== spScheduleMs) {
 						fields.schedule = spScheduleMs;
 					}
-					if (hasDueToken && noteDueMs !== spDueMs) {
-						fields.due = spDueMs;
-					}
 
 					if (
 						fields.timeEstimate !== undefined ||
-						fields.schedule !== undefined ||
-						fields.due !== undefined
+						fields.schedule !== undefined
 					) {
 						updatedLine = applyExtraFieldsToLine(
 							updatedLine,
@@ -525,42 +484,31 @@ export class TaskSyncService {
 				}
 
 			if (
-				(!this.settings.syncExtraFields && !this.settings.syncDueDate) ||
+				(!this.settings.syncExtraFields) ||
 				!spTask
 			)
 				continue;
 
 			const noteEstimate = parseEstimate(task.estimateRaw) ?? undefined;
 			const noteSchedule = parseSchedule(task.scheduleRaw);
-			const noteDue = parseDue(task.dueRaw);
-			const noteScheduleMs = noteSchedule?.plannedAt ?? null;
-			const noteDueMs = scheduleOrDeadlineToMs(noteDue);
+			const noteScheduleMs = noteSchedule?.dueWithTime ?? null;
 			const spEstimate = spTask.timeEstimate ?? undefined;
-			const spScheduleMs = spTask.plannedAt ?? null;
-			const spDueMs = scheduleOrDeadlineToMs({
-				dueWithTime: spTask.dueWithTime,
-				dueDay: spTask.dueDay,
-			});
+			const spScheduleMs = spTask.dueWithTime ?? null;
 
 			if (
 				noteEstimate !== spEstimate ||
-				noteScheduleMs !== spScheduleMs ||
-				noteDueMs !== spDueMs
+				noteScheduleMs !== spScheduleMs
 			) {
 				try {
 					const patch: {
 						timeEstimate?: number;
-						plannedAt?: number;
 						dueWithTime?: number;
 					} = { timeEstimate: noteEstimate };
 					if (noteSchedule) {
-						patch.plannedAt = noteSchedule.plannedAt;
-					}
-					if (noteDue) {
-						patch.dueWithTime = noteDue.dueWithTime;
+						patch.dueWithTime = noteSchedule.dueWithTime;
 					}
 					new Notice(
-						`[sp-sync] 更新 ${task.spId} | noteSched=${noteScheduleMs} spSched=${spScheduleMs} noteDue=${noteDueMs} spDue=${spDueMs}`,
+						`[sp-sync] 更新 ${task.spId} | noteSched=${noteScheduleMs} spSched=${spScheduleMs}`,
 					);
 					await this.api.updateTask(task.spId, patch);
 				} catch (e) {

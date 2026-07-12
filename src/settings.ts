@@ -9,7 +9,6 @@ export interface SuperProductivitySettings {
 	enablePolling: boolean;
 	enableSubtaskSync: boolean;
 	syncTags: boolean;
-	syncDueDate: boolean;
 	syncExtraFields: boolean;
 	autoSyncOnIdle: boolean;
 	autoSyncDebounceSeconds: number;
@@ -24,7 +23,6 @@ export const DEFAULT_SETTINGS: SuperProductivitySettings = {
 	enablePolling: true,
 	enableSubtaskSync: true,
 	syncTags: true,
-	syncDueDate: true,
 	syncExtraFields: true,
 	autoSyncOnIdle: true,
 	autoSyncDebounceSeconds: 3,
@@ -137,20 +135,8 @@ export class SyncSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Sync due date')
-			.setDesc('将任务行中的 [due:: 2026-07-12] 或 [due:: 2026-07-12 15:00] 同步为 sp 截止时间')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.syncDueDate)
-					.onChange(async (value) => {
-						this.plugin.settings.syncDueDate = value;
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(containerEl)
 			.setName('Sync extra fields')
-			.setDesc('将 @estimate:HH:MM（预估时长）、@schedule:日期 或 日期T时间（计划时间，如 2026-07-15T15:30）与 @priority:标签 同步到 sp（输入 @ 可获取智能提示）')
+			.setDesc('将 @estimate:HH:MM / @estimate HH:MM（预估时长）、@schedule:日期 / @schedule 日期（计划日期）、@project:项目 / @project 项目、@tag:标签 / @tag 标签 与 @priority:标签 / @priority 标签 同步到 sp（输入 @ 可获取智能提示）')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.syncExtraFields)

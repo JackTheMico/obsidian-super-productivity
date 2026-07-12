@@ -86,11 +86,11 @@ export class SPSuggest extends EditorSuggest<SPSuggestion> {
 
 	private getTypeSuggestions(): SPSuggestion[] {
 		const items: SPSuggestion[] = [
-			{ text: 'due:', displayText: 'due', description: '截止日期' },
+			{ text: 'due:', displayText: 'due', description: '截止日期（deadline）' },
 			{ text: 'tag:', displayText: 'tag', description: 'SP 标签' },
 			{ text: 'project:', displayText: 'project', description: 'SP 项目' },
 			{ text: 'estimate:', displayText: 'estimate', description: '预估时长 HH:MM' },
-			{ text: 'schedule:', displayText: 'schedule', description: '计划日期或 日期T时间，如 2026-07-15T15:30' },
+			{ text: 'schedule:', displayText: 'schedule', description: '计划日期，如 2026-07-15T15:30（精确到分钟）' },
 			{ text: 'priority:', displayText: 'priority', description: 'SP 标签（作为优先级）' },
 		];
 		const q = this.query.toLowerCase();
@@ -148,9 +148,9 @@ export class SPSuggest extends EditorSuggest<SPSuggestion> {
 				),
 			},
 			{
-				text: `schedule:${toLocalIso(now)}T15:30`,
-				displayText: `${toLocalIso(now)}T15:30`,
-				description: '今日 15:30（精确到分钟）',
+				text: `schedule:${toLocalIso(now)}T09:00`,
+				displayText: `${toLocalIso(now)}T09:00`,
+				description: '今日 09:00（计划时间）',
 			},
 		];
 		const q = this.query.toLowerCase();
@@ -210,6 +210,12 @@ export class SPSuggest extends EditorSuggest<SPSuggestion> {
 				description: toIso(d),
 			});
 		}
+
+		items.push({
+			text: `due:${toIso(now)}T17:00`,
+			displayText: `${toIso(now)}T17:00`,
+			description: '今日 17:00（截止时间）',
+		});
 
 		const q = this.query.toLowerCase();
 		return q
