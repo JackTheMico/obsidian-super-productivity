@@ -75,10 +75,6 @@ export class TaskSyncService {
 			new Notice('Task is already completed');
 			return;
 		}
-		if (task.spId) {
-			new Notice('Task already has a sync ID');
-			return;
-		}
 
 		try {
 			this.suppressAutoSync = true;
@@ -93,25 +89,35 @@ export class TaskSyncService {
 			const { tagIds, projectId, schedule, timeEstimate } =
 				await this.resolveTaskFields(task);
 
-			const spTask = await this.api.createTask({
-				title: task.title,
-				notes,
-				projectId: projectId || undefined,
-				parentId: parentSpId,
-				tagIds: tagIds.length ? tagIds : undefined,
-				dueWithTime: schedule.dueWithTime,
-				timeEstimate,
-			});
+			let spTask;
+			if (task.spId) {
+				spTask = await this.api.updateTask(task.spId, {
+					title: task.title,
+					notes,
+					projectId: projectId || undefined,
+					tagIds: tagIds.length ? tagIds : undefined,
+					dueWithTime: schedule.dueWithTime,
+					timeEstimate,
+				});
+				new Notice(`[sp-sync] 更新任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`);
+			} else {
+				spTask = await this.api.createTask({
+					title: task.title,
+					notes,
+					projectId: projectId || undefined,
+					parentId: parentSpId,
+					tagIds: tagIds.length ? tagIds : undefined,
+					dueWithTime: schedule.dueWithTime,
+					timeEstimate,
+				});
+				new Notice(`[sp-sync] 创建任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`);
 
-			new Notice(
-				`[sp-sync] 创建任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`,
-			);
-
-			const newLine = addSpId(editor.getLine(cursor.line), spTask.id);
-			editor.setLine(cursor.line, newLine);
+				const newLine = addSpId(editor.getLine(cursor.line), spTask.id);
+				editor.setLine(cursor.line, newLine);
+			}
 
 			this.settings.taskStateCache[spTask.id] = false;
-			new Notice('Task sent to super productivity');
+			new Notice(task.spId ? 'Task updated in super productivity' : 'Task sent to super productivity');
 		} catch (e) {
 			new Notice(`Failed to send task: ${(e as Error).message}`);
 		} finally {
@@ -122,45 +128,82 @@ export class TaskSyncService {
 	async pushAllTasks(file: TFile): Promise<void> {
 		const content = await this.readFileSafe(file);
 		const allTasks = extractAllTasks(content, file.path);
-		const activeTasks = allTasks.filter((t) => !t.isDone && !t.spId);
+		const newTasks = allTasks.filter((t) => !t.isDone && !t.spId);
+		const existingTasks = allTasks.filter((t) => !t.isDone && t.spId);
 
-		if (activeTasks.length === 0) {
-			new Notice('No unsynced unchecked tasks found');
+		if (newTasks.length === 0 && existingTasks.length === 0) {
+			new Notice('No unchecked tasks found');
 			return;
 		}
 
-try {
-			const { tagIds, projectIds, schedules, timeEstimates } =
-				await this.resolveTaskFieldsBulk(activeTasks);
-
+		try {
+			this.suppressAutoSync = true;
+			let createdCount = 0;
+			let updatedCount = 0;
 			const spIds: { lineNumber: number; spId: string }[] = [];
 
-			for (const task of activeTasks) {
-				const parentSpId = this.findParentSpId(task, allTasks);
+			if (newTasks.length > 0) {
+				const { tagIds, projectIds, schedules, timeEstimates } =
+					await this.resolveTaskFieldsBulk(newTasks);
 
-				const notes = this.settings.autoCreateDeepLink
-					? createDeepLink(this.app, file, task.lineNumber)
-					: undefined;
+				for (const task of newTasks) {
+					const parentSpId = this.findParentSpId(task, allTasks);
 
-				const spTask = await this.api.createTask({
-					title: task.title,
-					notes,
-					projectId:
-						projectIds[task.lineNumber] ||
-						this.settings.defaultProjectId ||
-						undefined,
-					parentId: parentSpId,
-					tagIds: task.tags.length ? tagIds[task.lineNumber] : undefined,
-					dueWithTime: schedules[task.lineNumber]?.dueWithTime,
-					timeEstimate: timeEstimates[task.lineNumber],
-				});
+					const notes = this.settings.autoCreateDeepLink
+						? createDeepLink(this.app, file, task.lineNumber)
+						: undefined;
 
-			new Notice(
-				`[sp-sync] 创建任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`,
-			);
+					const spTask = await this.api.createTask({
+						title: task.title,
+						notes,
+						projectId:
+							projectIds[task.lineNumber] ||
+							this.settings.defaultProjectId ||
+							undefined,
+						parentId: parentSpId,
+						tagIds: task.tags.length ? tagIds[task.lineNumber] : undefined,
+						dueWithTime: schedules[task.lineNumber]?.dueWithTime,
+						timeEstimate: timeEstimates[task.lineNumber],
+					});
 
-			spIds.push({ lineNumber: task.lineNumber, spId: spTask.id });
-				this.settings.taskStateCache[spTask.id] = false;
+					new Notice(
+						`[sp-sync] 创建任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`,
+					);
+
+					spIds.push({ lineNumber: task.lineNumber, spId: spTask.id });
+					this.settings.taskStateCache[spTask.id] = false;
+					createdCount++;
+				}
+			}
+
+			if (existingTasks.length > 0) {
+				const { tagIds, projectIds, schedules, timeEstimates } =
+					await this.resolveTaskFieldsBulk(existingTasks);
+
+				for (const task of existingTasks) {
+					const notes = this.settings.autoCreateDeepLink
+						? createDeepLink(this.app, file, task.lineNumber)
+						: undefined;
+
+					const spTask = await this.api.updateTask(task.spId!, {
+						title: task.title,
+						notes,
+						projectId:
+							projectIds[task.lineNumber] ||
+							this.settings.defaultProjectId ||
+							undefined,
+						tagIds: task.tags.length ? tagIds[task.lineNumber] : undefined,
+						dueWithTime: schedules[task.lineNumber]?.dueWithTime,
+						timeEstimate: timeEstimates[task.lineNumber],
+					});
+
+					new Notice(
+						`[sp-sync] 更新任务 ${spTask.id} | dueWithTime=${spTask.dueWithTime}`,
+					);
+
+					this.settings.taskStateCache[spTask.id] = false;
+					updatedCount++;
+				}
 			}
 
 			const updatedLines = content.split('\n');
@@ -172,9 +215,14 @@ try {
 			}
 			await this.modifyFileSafe(file, updatedLines.join('\n'));
 
-			new Notice(`Sent ${spIds.length} tasks to Super Productivity`);
+			const parts: string[] = [];
+			if (createdCount > 0) parts.push(`创建 ${createdCount} 个`);
+			if (updatedCount > 0) parts.push(`更新 ${updatedCount} 个`);
+			new Notice(`${parts.join('、')}任务同步到 Super Productivity`);
 		} catch (e) {
 			new Notice(`Failed to send tasks: ${(e as Error).message}`);
+		} finally {
+			this.suppressAutoSync = false;
 		}
 	}
 
