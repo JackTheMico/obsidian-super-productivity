@@ -1,15 +1,24 @@
 import { App, Editor, Notice, TFile, Vault } from 'obsidian';
 import { SuperProductivityApi } from '../api/superProductivityApi';
+import type { SPTask } from '../api/types';
 import type { SuperProductivitySettings } from '../settings';
 import {
 	parseLine,
 	extractAllTasks,
 	addSpId,
 	markDone,
+	applyExtraFieldsToLine,
 } from './obsidianTaskParser';
 import type { TaskLine } from './obsidianTaskParser';
 import { createDeepLink } from '../utils/deepLink';
-import { parseDue, resolveTagIds, resolveProjectId } from '../utils/taskFields';
+import {
+	parseSchedule,
+	parseEstimate,
+	formatEstimate,
+	formatSchedule,
+	resolveTagIds,
+	resolveProjectId,
+} from '../utils/taskFields';
 
 export class TaskSyncService {
 	private api: SuperProductivityApi;
@@ -66,10 +75,6 @@ export class TaskSyncService {
 			new Notice('Task is already completed');
 			return;
 		}
-		if (task.spId) {
-			new Notice('Task already has a sync ID');
-			return;
-		}
 
 		try {
 			this.suppressAutoSync = true;
@@ -81,24 +86,36 @@ export class TaskSyncService {
 				? createDeepLink(this.app, file, task.lineNumber)
 				: undefined;
 
-			const { tagIds, projectId, due } = await this.resolveTaskFields(
-				task,
-			);
+			const { tagIds, projectId, schedule, timeEstimate } =
+				await this.resolveTaskFields(task);
 
-			const spTask = await this.api.createTask({
-				title: task.title,
-				notes,
-				projectId: projectId || undefined,
-				parentId: parentSpId,
-				tagIds: tagIds.length ? tagIds : undefined,
-				...due,
-			});
+			let spTask;
+			if (task.spId) {
+				spTask = await this.api.updateTask(task.spId, {
+					title: task.title,
+					notes,
+					projectId: projectId || undefined,
+					tagIds: tagIds.length ? tagIds : undefined,
+					dueWithTime: schedule.dueWithTime,
+					timeEstimate,
+				});
+			} else {
+				spTask = await this.api.createTask({
+					title: task.title,
+					notes,
+					projectId: projectId || undefined,
+					parentId: parentSpId,
+					tagIds: tagIds.length ? tagIds : undefined,
+					dueWithTime: schedule.dueWithTime,
+					timeEstimate,
+				});
 
-			const newLine = addSpId(editor.getLine(cursor.line), spTask.id);
-			editor.setLine(cursor.line, newLine);
+				const newLine = addSpId(editor.getLine(cursor.line), spTask.id);
+				editor.setLine(cursor.line, newLine);
+			}
 
 			this.settings.taskStateCache[spTask.id] = false;
-			new Notice('Task sent to super productivity');
+			new Notice(task.spId ? 'Task updated in super productivity' : 'Task sent to super productivity');
 		} catch (e) {
 			new Notice(`Failed to send task: ${(e as Error).message}`);
 		} finally {
@@ -109,40 +126,74 @@ export class TaskSyncService {
 	async pushAllTasks(file: TFile): Promise<void> {
 		const content = await this.readFileSafe(file);
 		const allTasks = extractAllTasks(content, file.path);
-		const activeTasks = allTasks.filter((t) => !t.isDone && !t.spId);
+		const newTasks = allTasks.filter((t) => !t.isDone && !t.spId);
+		const existingTasks = allTasks.filter((t) => !t.isDone && t.spId);
 
-		if (activeTasks.length === 0) {
-			new Notice('No unsynced unchecked tasks found');
+		if (newTasks.length === 0 && existingTasks.length === 0) {
+			new Notice('No unchecked tasks found');
 			return;
 		}
 
 		try {
-			const { tagIds, projectIds, due } =
-				await this.resolveTaskFieldsBulk(activeTasks);
-
+			this.suppressAutoSync = true;
+			let createdCount = 0;
+			let updatedCount = 0;
 			const spIds: { lineNumber: number; spId: string }[] = [];
 
-			for (const task of activeTasks) {
-				const parentSpId = this.findParentSpId(task, allTasks);
+			if (newTasks.length > 0) {
+				const { tagIds, projectIds, schedules, timeEstimates } =
+					await this.resolveTaskFieldsBulk(newTasks);
 
-				const notes = this.settings.autoCreateDeepLink
-					? createDeepLink(this.app, file, task.lineNumber)
-					: undefined;
+				for (const task of newTasks) {
+					const parentSpId = this.findParentSpId(task, allTasks);
 
-				const spTask = await this.api.createTask({
-					title: task.title,
-					notes,
-					projectId:
-						projectIds[task.lineNumber] ||
-						this.settings.defaultProjectId ||
-						undefined,
-					parentId: parentSpId,
-					tagIds: task.tags.length ? tagIds[task.lineNumber] : undefined,
-					...due[task.lineNumber],
-				});
+					const notes = this.settings.autoCreateDeepLink
+						? createDeepLink(this.app, file, task.lineNumber)
+						: undefined;
 
-				spIds.push({ lineNumber: task.lineNumber, spId: spTask.id });
-				this.settings.taskStateCache[spTask.id] = false;
+					const spTask = await this.api.createTask({
+						title: task.title,
+						notes,
+						projectId:
+							projectIds[task.lineNumber] ||
+							this.settings.defaultProjectId ||
+							undefined,
+						parentId: parentSpId,
+						tagIds: task.tags.length ? tagIds[task.lineNumber] : undefined,
+						dueWithTime: schedules[task.lineNumber]?.dueWithTime,
+						timeEstimate: timeEstimates[task.lineNumber],
+					});
+
+					spIds.push({ lineNumber: task.lineNumber, spId: spTask.id });
+					this.settings.taskStateCache[spTask.id] = false;
+					createdCount++;
+				}
+			}
+
+			if (existingTasks.length > 0) {
+				const { tagIds, projectIds, schedules, timeEstimates } =
+					await this.resolveTaskFieldsBulk(existingTasks);
+
+				for (const task of existingTasks) {
+					const notes = this.settings.autoCreateDeepLink
+						? createDeepLink(this.app, file, task.lineNumber)
+						: undefined;
+
+					const spTask = await this.api.updateTask(task.spId!, {
+						title: task.title,
+						notes,
+						projectId:
+							projectIds[task.lineNumber] ||
+							this.settings.defaultProjectId ||
+							undefined,
+						tagIds: task.tags.length ? tagIds[task.lineNumber] : undefined,
+						dueWithTime: schedules[task.lineNumber]?.dueWithTime,
+						timeEstimate: timeEstimates[task.lineNumber],
+					});
+
+					this.settings.taskStateCache[spTask.id] = false;
+					updatedCount++;
+				}
 			}
 
 			const updatedLines = content.split('\n');
@@ -154,20 +205,31 @@ export class TaskSyncService {
 			}
 			await this.modifyFileSafe(file, updatedLines.join('\n'));
 
-			new Notice(`Sent ${spIds.length} tasks to Super Productivity`);
+			const parts: string[] = [];
+			if (createdCount > 0) parts.push(`创建 ${createdCount} 个`);
+			if (updatedCount > 0) parts.push(`更新 ${updatedCount} 个`);
+			new Notice(`${parts.join('、')}任务同步到 Super Productivity`);
 		} catch (e) {
 			new Notice(`Failed to send tasks: ${(e as Error).message}`);
+		} finally {
+			this.suppressAutoSync = false;
 		}
 	}
 
 	private async resolveTaskFields(task: TaskLine): Promise<{
 		tagIds: string[];
 		projectId: string;
-		due: { dueDay?: string; dueWithTime?: number };
+		schedule: { dueWithTime?: number };
+		timeEstimate?: number;
 	}> {
+		const allTagNames = [...task.tags];
+		if (this.settings.syncExtraFields) {
+			allTagNames.push(...task.priorityRaw);
+		}
+
 		const tagIds: string[] = [];
-		if (this.settings.syncTags && task.tags.length) {
-			const result = await resolveTagIds(this.api, task.tags);
+		if (this.settings.syncTags && allTagNames.length) {
+			const result = await resolveTagIds(this.api, allTagNames);
 			tagIds.push(...result.ids);
 			if (result.missing.length) {
 				new Notice(
@@ -191,44 +253,66 @@ export class TaskSyncService {
 			}
 		}
 
-		let due: { dueDay?: string; dueWithTime?: number } = {};
-		if (this.settings.syncDueDate) {
-			const parsed = parseDue(task.dueRaw);
-			if (parsed) {
-				due = parsed;
-			} else if (task.dueRaw) {
-				new Notice(`Invalid due date: ${task.dueRaw}`);
+		let schedule: { dueWithTime?: number } = {};
+		if (this.settings.syncExtraFields) {
+			const sched = parseSchedule(task.scheduleRaw);
+			if (sched === null && task.scheduleRaw) {
+				new Notice(`Invalid schedule: ${task.scheduleRaw}`);
+			} else {
+				schedule = sched ?? {};
 			}
 		}
 
-		return { tagIds, projectId, due };
+		let timeEstimate: number | undefined;
+		if (this.settings.syncExtraFields) {
+			const est = parseEstimate(task.estimateRaw);
+			if (est === null && task.estimateRaw) {
+				new Notice(`Invalid estimate: ${task.estimateRaw}`);
+			} else {
+				timeEstimate = est ?? undefined;
+			}
+		}
+
+		return { tagIds, projectId, schedule, timeEstimate };
 	}
 
 	private async resolveTaskFieldsBulk(tasks: TaskLine[]): Promise<{
 		tagIds: Record<number, string[]>;
 		projectIds: Record<number, string | undefined>;
-		due: Record<number, { dueDay?: string; dueWithTime?: number }>;
+		schedules: Record<number, { dueWithTime?: number }>;
+		timeEstimates: Record<number, number | undefined>;
 	}> {
 		const tagIds: Record<number, string[]> = {};
 		const projectIds: Record<number, string | undefined> = {};
-		const due: Record<number, { dueDay?: string; dueWithTime?: number }> =
-			{};
+		const schedules: Record<number, { dueWithTime?: number }> = {};
+		const timeEstimates: Record<number, number | undefined> = {};
 
 		const allTagNames = new Set<string>();
 		const projectNames = new Set<string>();
 		for (const task of tasks) {
 			if (this.settings.syncTags) {
 				task.tags.forEach((t) => allTagNames.add(t));
+				if (this.settings.syncExtraFields) {
+					task.priorityRaw.forEach((p) => allTagNames.add(p));
+				}
 			}
 			if (task.project) projectNames.add(task.project);
-			if (this.settings.syncDueDate) {
-				const parsed = parseDue(task.dueRaw);
-				due[task.lineNumber] = parsed ?? {};
-				if (!parsed && task.dueRaw) {
-					new Notice(`Invalid due date: ${task.dueRaw}`);
+			if (this.settings.syncExtraFields) {
+				const est = parseEstimate(task.estimateRaw);
+				if (est === null && task.estimateRaw) {
+					new Notice(`Invalid estimate: ${task.estimateRaw}`);
+				} else {
+					timeEstimates[task.lineNumber] = est ?? undefined;
+				}
+				const sched = parseSchedule(task.scheduleRaw);
+				if (sched === null && task.scheduleRaw) {
+					new Notice(`Invalid schedule: ${task.scheduleRaw}`);
+				} else {
+					schedules[task.lineNumber] = sched ?? {};
 				}
 			} else {
-				due[task.lineNumber] = {};
+				timeEstimates[task.lineNumber] = undefined;
+				schedules[task.lineNumber] = {};
 			}
 		}
 
@@ -276,7 +360,7 @@ export class TaskSyncService {
 				: undefined;
 		}
 
-		return { tagIds, projectIds, due };
+		return { tagIds, projectIds, schedules, timeEstimates };
 	}
 
 	private findParentSpId(
@@ -316,8 +400,13 @@ export class TaskSyncService {
 				this.cacheInitialized = true;
 			}
 
-			await this.syncSpToObsidian();
-			await this.syncObsidianToSp();
+			const spTasks = await this.api.getTasks({
+				includeDone: true,
+				source: 'all',
+			});
+
+			await this.syncSpToObsidian(spTasks);
+			await this.syncObsidianToSp(spTasks);
 		} catch (e) {
 			console.error('Sync error:', e);
 		} finally {
@@ -337,12 +426,7 @@ export class TaskSyncService {
 		}
 	}
 
-	private async syncSpToObsidian(): Promise<void> {
-		const spTasks = await this.api.getTasks({
-			includeDone: true,
-			source: 'all',
-		});
-
+	private async syncSpToObsidian(spTasks: SPTask[]): Promise<void> {
 		for (const spTask of spTasks) {
 			if (!spTask.isDone) continue;
 
@@ -363,44 +447,112 @@ export class TaskSyncService {
 
 			const content = await this.readFileSafe(file);
 			const lines = content.split('\n');
-			lines[taskLine.lineNumber] = markDone(lines[taskLine.lineNumber]!);
-			const ok = await this.modifyFileSafe(
-				file,
-				lines.join('\n'),
-			);
+			let updatedLine = lines[taskLine.lineNumber]!;
+			updatedLine = markDone(updatedLine);
+
+			if (this.settings.syncExtraFields) {
+				const hasEstimateToken = taskLine.estimateRaw != null;
+				const hasScheduleToken = taskLine.scheduleRaw != null;
+				if (hasEstimateToken || hasScheduleToken) {
+					const noteEstimate = parseEstimate(taskLine.estimateRaw);
+					const noteSchedule = parseSchedule(taskLine.scheduleRaw);
+					const spEstimate = spTask.timeEstimate ?? undefined;
+					const spScheduleMs = spTask.dueWithTime ?? null;
+					const noteScheduleMs = noteSchedule?.dueWithTime ?? null;
+
+					const fields: {
+						timeEstimate?: number | null;
+						schedule?: number | null;
+					} = {};
+					if (hasEstimateToken && noteEstimate !== spEstimate) {
+						fields.timeEstimate = spEstimate;
+					}
+					if (hasScheduleToken && noteScheduleMs !== spScheduleMs) {
+						fields.schedule = spScheduleMs;
+					}
+
+					if (
+						fields.timeEstimate !== undefined ||
+						fields.schedule !== undefined
+					) {
+						updatedLine = applyExtraFieldsToLine(
+							updatedLine,
+							fields,
+							formatEstimate,
+							formatSchedule,
+						);
+					}
+				}
+			}
+
+			lines[taskLine.lineNumber] = updatedLine;
+			const ok = await this.modifyFileSafe(file, lines.join('\n'));
 			if (ok) {
 				this.settings.taskStateCache[spTask.id] = true;
 			}
 		}
 	}
 
-	private async syncObsidianToSp(): Promise<void> {
+	private async syncObsidianToSp(spTasks: SPTask[]): Promise<void> {
+		const spTaskById = new Map(spTasks.map((t) => [t.id, t]));
 		const files = this.vault.getMarkdownFiles();
 		for (const file of files) {
 			const content = await this.readFileSafe(file);
 			for (const task of extractAllTasks(content, file.path)) {
 				if (!task.spId) continue;
 
-				const cached = this.settings.taskStateCache[task.spId];
+				const spTask = spTaskById.get(task.spId);
 
+				const cached = this.settings.taskStateCache[task.spId];
 				if (cached === undefined) {
 					this.settings.taskStateCache[task.spId] = task.isDone;
+				} else if (cached !== task.isDone && spTask) {
+					try {
+						await this.api.updateTask(task.spId, {
+							isDone: task.isDone,
+						});
+						this.settings.taskStateCache[task.spId] = task.isDone;
+					} catch (e) {
+						console.error(
+							`Failed to update SP task ${task.spId}:`,
+							e,
+						);
+					}
 					continue;
 				}
 
-				if (cached === task.isDone) continue;
+			if (
+				(!this.settings.syncExtraFields) ||
+				!spTask
+			)
+				continue;
 
+			const noteEstimate = parseEstimate(task.estimateRaw) ?? undefined;
+			const noteSchedule = parseSchedule(task.scheduleRaw);
+			const noteScheduleMs = noteSchedule?.dueWithTime ?? null;
+			const spEstimate = spTask.timeEstimate ?? undefined;
+			const spScheduleMs = spTask.dueWithTime ?? null;
+
+			if (
+				noteEstimate !== spEstimate ||
+				noteScheduleMs !== spScheduleMs
+			) {
 				try {
-					await this.api.updateTask(task.spId, {
-						isDone: task.isDone,
-					});
-					this.settings.taskStateCache[task.spId] = task.isDone;
+					const patch: {
+						timeEstimate?: number;
+						dueWithTime?: number;
+					} = { timeEstimate: noteEstimate };
+					if (noteSchedule) {
+						patch.dueWithTime = noteSchedule.dueWithTime;
+					}
+					await this.api.updateTask(task.spId, patch);
 				} catch (e) {
 					console.error(
 						`Failed to update SP task ${task.spId}:`,
 						e,
 					);
 				}
+			}
 			}
 		}
 	}
