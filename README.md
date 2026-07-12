@@ -16,8 +16,8 @@ A plugin that bidirectionally syncs Obsidian tasks (checkboxes) with [Super Prod
   **Subtask support**: Indentation levels in Obsidian are automatically mapped to SP subtasks.
 - **深链接**：在 SP 任务备注中嵌入 Obsidian deep link（点击直接跳回原笔记位置）
   **Deep link**: Embeds an Obsidian deep link in the SP task notes (click to jump back to the note).
-- **标签/截止日期/项目同步**：通过内联字段 `[tags:: ...]` `[due:: ...]` `[project:: ...]` 将标签、截止时间、所属项目一并推送到 SP
-  **Tags / due date / project sync**: Inline fields `[tags:: ...]` `[due:: ...]` `[project:: ...]` push tags, due time, and project to SP together.
+- **标签/计划日期/项目同步**：通过内联字段 `@tags:` `@schedule:` `@project:` 将标签、计划日期、所属项目一并推送到 SP
+  **Tags / scheduled date / project sync**: Inline fields `@tags:` `@schedule:` `@project:` push tags, scheduled date, and project to SP together.
 - **停止编辑自动同步**：停止修改当前文件（防抖等待）后，自动将该文件未同步的任务推送到 SP
   **Auto-sync on idle**: After you stop editing the current file (debounce wait), unsynced tasks in that file are pushed to SP automatically.
 
@@ -59,11 +59,11 @@ Because Super Productivity has no Webhook mechanism, the plugin uses **Polling**
 Use dataview-style inline fields anywhere in the checkbox line. They are automatically stripped on send and never enter the SP task body:
 
 ```markdown
-- [ ] 写周报 [tags:: work, report] [project:: 工作]
-- [ ] 下午三点开会 [project:: 会议]
-- [ ] 明天要交 [due:: 明天]
-- [ ] 读书笔记 [tags:: reading]            # 多个标签用逗号或 | 分隔
-    - [ ] 整理大纲 [project:: 工作]         # 缩进表示 SP 子任务
+- [ ] 写周报 @tags:work,report @schedule:2026-07-15 @project:工作
+- [ ] 下午三点开会 @schedule:2026-07-12T15:00 @project:会议
+- [ ] 明天要交 @schedule:明天
+- [ ] 读书笔记 @tags:reading            # 多个标签用逗号或 | 分隔
+    - [ ] 整理大纲 @project:工作         # 缩进表示 SP 子任务
 ```
 
 推送成功后，插件会在行尾自动追加关联 ID（用于轮询回写）：
@@ -71,15 +71,15 @@ Use dataview-style inline fields anywhere in the checkbox line. They are automat
 After a successful push, the plugin appends the link ID to the line end (used for polling write-back):
 
 ```markdown
-- [ ] 写周报 [tags:: work, report] [project:: 工作] [sp_id:: abc123]
+- [ ] 写周报 @tags:work,report @schedule:2026-07-15 @project:工作 [sp_id:: abc123]
 ```
 
 - `tags`：逗号或 `|` 分隔，按标题匹配 SP 中**已存在**的标签；未命中的标签会被跳过并提示
   `tags`: Comma- or `|`-separated; matched by title against **existing** SP tags. Unmatched tags are skipped with a notice.
+- `schedule`：支持绝对日期 `YYYY-MM-DD`（全天）、`YYYY-MM-DDTHH:MM`（带时间），也支持相对写法 `今天`/`明天`/`周一`..`周日`（英文 `today`/`tomorrow`/weekday names 亦可）
+  `schedule`: Absolute date `YYYY-MM-DD` (all-day), `YYYY-MM-DDTHH:MM` (with time), and relative `今天`/`明天`/`周一`..`周日` (also `today`/`tomorrow`/weekday names).
 - `project`：按标题匹配 SP 中**已存在**的项目；未命中则回退到「默认项目 ID」设置
   `project`: Matched by title against **existing** SP projects; falls back to the "Default project ID" setting when unmatched.
-- `due`：⚠️ **暂不支持**。Super Productivity Local REST API 的 `plannedAt` 字段不生效，`dueWithTime` 实际被用作排期/计划日期。目前仅支持 `@schedule:` 语法设置计划日期（映射到 `dueWithTime`）。
-  `due`: ⚠️ **Not supported yet**. Super Productivity Local REST API's `plannedAt` field is non-functional; `dueWithTime` is actually used for scheduling/planned date. Currently only `@schedule:` syntax is supported for setting planned date (maps to `dueWithTime`).
 - 停止编辑当前文件数秒（防抖）后，未同步的任务会自动推送到 SP（可在设置中关闭）
   After a few seconds of idle editing (debounce), unsynced tasks are pushed to SP automatically (can be disabled in settings).
 
@@ -116,8 +116,7 @@ These fields sync in the **Obsidian → SP** direction only (written when pushin
 | 自动创建深链接 / Auto-create deep link | 开启 / on | 在 SP 备注中嵌入 Obsidian 链接 / Embed Obsidian link in SP notes |
 | 启用轮询 / Enable polling | 开启 / on | 是否启动定时轮询 / Whether to run periodic polling |
 | 子任务同步 / Subtask sync | 开启 / on | 是否将缩进层级映射为 SP 子任务 / Map indentation to SP subtasks |
-| 同步标签 / Sync tags | 开启 / on | 是否将 `[tags:: ...]` 同步为 SP 标签 / Sync `[tags:: ...]` to SP tags |
-| 同步截止日期 / Sync due date | 开启 / on | 是否将 `[due:: ...]` 同步为 SP 截止时间 / Sync `[due:: ...]` to SP due time |
+| 同步标签 / Sync tags | 开启 / on | 是否将 `@tag:` 同步为 SP 标签 / Sync `@tag:` to SP tags |
 | 停止编辑自动同步 / Auto-sync on idle | 开启 / on | 停止编辑当前文件后自动推送未同步任务 / Auto-push unsynced tasks after editing stops |
 | 自动同步防抖 / Auto-sync debounce | 3 秒 / 3s | 停止编辑后等待多久再自动同步 / Wait time before auto-sync triggers |
 
